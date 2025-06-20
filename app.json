@@ -8,6 +8,7 @@
     "scheme": "citizenjaivik",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "description": "Fresh organic food delivery app for Jamshedpur",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.citizenjaivik.app"
@@ -19,7 +20,10 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.citizenjaivik.app",
-      "versionCode": 1
+      "versionCode": 1,
+      "compileSdkVersion": 34,
+      "targetSdkVersion": 34,
+      "minSdkVersion": 23
     },
     "web": {
       "bundler": "metro",

@@ -1,5 +1,5 @@
 // app/addresses.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,10 +14,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
 
 interface Address {
-  id: number;
-  type: string;
+  id: string;
+  type: 'Home' | 'Work' | 'Other';
   name: string;
   phone: string;
   address: string;
@@ -25,46 +27,86 @@ interface Address {
   isDefault: boolean;
 }
 
-export default function AddressesScreen() {
-  const [addresses, setAddresses] = useState<Address[]>([
-    {
-      id: 1,
-      type: 'Home',
-      name: 'Guest User',
-      phone: '+91 9534209528',
-      address: 'Kadma, Jamshedpur',
-      pincode: '831005',
-      isDefault: true
-    },
-    {
-      id: 2,
-      type: 'Work',
-      name: 'Guest User',
-      phone: '+91 9534209528',
-      address: 'Bistupur, Jamshedpur',
-      pincode: '831001',
-      isDefault: false
-    }
-  ]);
+interface UserProfile {
+  phone: string;
+  name: string;
+  email: string;
+  addresses: Address[];
+  orders: any[];
+  createdAt: string;
+  lastLoginAt: string;
+  isVerified: boolean;
+}
 
+export default function AddressesScreen() {
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   const [formData, setFormData] = useState({
-    type: 'Home',
+    type: 'Home' as 'Home' | 'Work' | 'Other',
     name: '',
     phone: '',
     address: '',
     pincode: '',
   });
+   const navigation = useNavigation();
+    
+    React.useLayoutEffect(() => {
+      navigation.setOptions({ headerShown: false });
+    }, []);
+  
 
-  const addressTypes = ['Home', 'Work', 'Other'];
+  const addressTypes: ('Home' | 'Work' | 'Other')[] = ['Home', 'Work', 'Other'];
+  
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      const userData = await AsyncStorage.getItem('user_profile');
+      if (userData) {
+        const profile = JSON.parse(userData);
+        setUserProfile(profile);
+      } else {
+        // User not logged in, redirect to sign in
+        Alert.alert(
+          'Sign In Required',
+          'Please sign in to manage your addresses.',
+          [
+            { text: 'Cancel', onPress: () => router.back() },
+            { text: 'Sign In', onPress: () => router.push('/sign-in') }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+      Alert.alert('Error', 'Failed to load addresses. Please try again.');
+      router.back();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const saveUserProfile = async (updatedProfile: UserProfile) => {
+    try {
+      await AsyncStorage.setItem('user_profile', JSON.stringify(updatedProfile));
+      setUserProfile(updatedProfile);
+    } catch (error) {
+      console.error('Error saving user profile:', error);
+      throw error;
+    }
+  };
 
   const handleAddAddress = () => {
+    if (!userProfile) return;
+    
     setEditingAddress(null);
     setFormData({
       type: 'Home',
-      name: '',
-      phone: '',
+      name: userProfile.name,
+      phone: userProfile.phone,
       address: '',
       pincode: '',
     });
@@ -83,7 +125,9 @@ export default function AddressesScreen() {
     setShowAddModal(true);
   };
 
-  const handleSaveAddress = () => {
+  const handleSaveAddress = async () => {
+    if (!userProfile) return;
+    
     if (!formData.name || !formData.phone || !formData.address || !formData.pincode) {
       Alert.alert('Error', 'Please fill all fields');
       return;
@@ -95,30 +139,44 @@ export default function AddressesScreen() {
       return;
     }
 
-    if (editingAddress) {
-      // Update existing address
-      setAddresses(prev => prev.map(addr => 
-        addr.id === editingAddress.id 
-          ? { ...addr, ...formData }
-          : addr
-      ));
-      Alert.alert('Success', 'Address updated successfully!');
-    } else {
-      // Add new address
-      const newAddress: Address = {
-        id: Date.now(),
-        ...formData,
-        isDefault: addresses.length === 0,
-      };
-      setAddresses(prev => [...prev, newAddress]);
-      Alert.alert('Success', 'Address added successfully!');
-    }
+    try {
+      let updatedAddresses = [...userProfile.addresses];
 
-    setShowAddModal(false);
+      if (editingAddress) {
+        // Update existing address
+        updatedAddresses = updatedAddresses.map(addr => 
+          addr.id === editingAddress.id 
+            ? { ...addr, ...formData }
+            : addr
+        );
+        Alert.alert('Success', 'Address updated successfully!');
+      } else {
+        // Add new address
+        const newAddress: Address = {
+          id: `addr_${Date.now()}`,
+          ...formData,
+          isDefault: updatedAddresses.length === 0, // First address is default
+        };
+        updatedAddresses.push(newAddress);
+        Alert.alert('Success', 'Address added successfully!');
+      }
+
+      const updatedProfile = {
+        ...userProfile,
+        addresses: updatedAddresses,
+      };
+
+      await saveUserProfile(updatedProfile);
+      setShowAddModal(false);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save address. Please try again.');
+    }
   };
 
-  const handleDeleteAddress = (addressId: number) => {
-    const addressToDelete = addresses.find(addr => addr.id === addressId);
+  const handleDeleteAddress = (addressId: string) => {
+    if (!userProfile) return;
+    
+    const addressToDelete = userProfile.addresses.find(addr => addr.id === addressId);
     
     Alert.alert(
       'Delete Address',
@@ -128,29 +186,76 @@ export default function AddressesScreen() {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setAddresses(prev => {
-              const filtered = prev.filter(addr => addr.id !== addressId);
+          onPress: async () => {
+            try {
+              let updatedAddresses = userProfile.addresses.filter(addr => addr.id !== addressId);
+              
               // If deleted address was default and there are other addresses, make the first one default
-              if (addressToDelete?.isDefault && filtered.length > 0) {
-                filtered[0].isDefault = true;
+              if (addressToDelete?.isDefault && updatedAddresses.length > 0) {
+                updatedAddresses[0].isDefault = true;
               }
-              return filtered;
-            });
-            Alert.alert('Success', 'Address deleted successfully!');
+
+              const updatedProfile = {
+                ...userProfile,
+                addresses: updatedAddresses,
+              };
+
+              await saveUserProfile(updatedProfile);
+              Alert.alert('Success', 'Address deleted successfully!');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete address. Please try again.');
+            }
           }
         }
       ]
     );
   };
 
-  const handleSetDefault = (addressId: number) => {
-    setAddresses(prev => prev.map(addr => ({
-      ...addr,
-      isDefault: addr.id === addressId
-    })));
-    Alert.alert('Success', 'Default address updated!');
+  const handleSetDefault = async (addressId: string) => {
+    if (!userProfile) return;
+    
+    try {
+      const updatedAddresses = userProfile.addresses.map(addr => ({
+        ...addr,
+        isDefault: addr.id === addressId
+      }));
+
+      const updatedProfile = {
+        ...userProfile,
+        addresses: updatedAddresses,
+      };
+
+      await saveUserProfile(updatedProfile);
+      Alert.alert('Success', 'Default address updated!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update default address. Please try again.');
+    }
   };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Ionicons name="location-outline" size={60} color="#2e7d32" />
+          <Text style={styles.loadingText}>Loading addresses...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!userProfile) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={60} color="#ff4757" />
+          <Text style={styles.errorText}>Unable to load addresses</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadUserData}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -174,7 +279,21 @@ export default function AddressesScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {addresses.length === 0 ? (
+        {/* User Info Banner */}
+        <View style={styles.userBanner}>
+          <View style={styles.userInfo}>
+            <Ionicons name="person-circle" size={40} color="#2e7d32" />
+            <View style={styles.userDetails}>
+              <Text style={styles.userName}>{userProfile.name}</Text>
+              <Text style={styles.userPhone}>{userProfile.phone}</Text>
+            </View>
+          </View>
+          <Text style={styles.addressCount}>
+            {userProfile.addresses.length} {userProfile.addresses.length === 1 ? 'Address' : 'Addresses'}
+          </Text>
+        </View>
+
+        {userProfile.addresses.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
               <Ionicons name="location-outline" size={80} color="#ccc" />
@@ -188,7 +307,7 @@ export default function AddressesScreen() {
               onPress={handleAddAddress}
             >
               <Ionicons name="add" size={20} color="#fff" style={{marginRight: 8}} />
-              <Text style={styles.addFirstButtonText}>Add Address</Text>
+              <Text style={styles.addFirstButtonText}>Add Your First Address</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -202,15 +321,15 @@ export default function AddressesScreen() {
             </View>
 
             {/* Addresses List */}
-            {addresses.map((address) => (
+            {userProfile.addresses.map((address) => (
               <View key={address.id} style={styles.addressCard}>
                 {/* Address Header */}
                 <View style={styles.addressHeader}>
                   <View style={styles.addressTypeContainer}>
                     <Ionicons 
                       name={
-                        address.type === 'Home' ? 'home-outline' :
-                        address.type === 'Work' ? 'business-outline' : 'location-outline'
+                        address.type === 'Home' ? 'home' :
+                        address.type === 'Work' ? 'business' : 'location'
                       }
                       size={20} 
                       color="#2e7d32" 
@@ -219,6 +338,7 @@ export default function AddressesScreen() {
                   </View>
                   {address.isDefault && (
                     <View style={styles.defaultBadge}>
+                      <Ionicons name="checkmark-circle" size={16} color="#fff" />
                       <Text style={styles.defaultBadgeText}>Default</Text>
                     </View>
                   )}
@@ -229,8 +349,9 @@ export default function AddressesScreen() {
                   <Text style={styles.addressName}>{address.name}</Text>
                   <Text style={styles.addressPhone}>{address.phone}</Text>
                   <Text style={styles.addressText}>
-                    {address.address}, {address.pincode}
+                    {address.address}
                   </Text>
+                  <Text style={styles.addressPincode}>Pincode: {address.pincode}</Text>
                 </View>
 
                 {/* Address Actions */}
@@ -253,13 +374,15 @@ export default function AddressesScreen() {
                     <Text style={styles.actionText}>Edit</Text>
                   </TouchableOpacity>
                   
-                  <TouchableOpacity 
-                    style={styles.actionButton}
-                    onPress={() => handleDeleteAddress(address.id)}
-                  >
-                    <Ionicons name="trash-outline" size={16} color="#ff4757" />
-                    <Text style={[styles.actionText, {color: '#ff4757'}]}>Delete</Text>
-                  </TouchableOpacity>
+                  {userProfile.addresses.length > 1 && (
+                    <TouchableOpacity 
+                      style={styles.actionButton}
+                      onPress={() => handleDeleteAddress(address.id)}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#ff4757" />
+                      <Text style={[styles.actionText, {color: '#ff4757'}]}>Delete</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             ))}
@@ -311,6 +434,14 @@ export default function AddressesScreen() {
                     ]}
                     onPress={() => setFormData({...formData, type})}
                   >
+                    <Ionicons 
+                      name={
+                        type === 'Home' ? 'home-outline' :
+                        type === 'Work' ? 'business-outline' : 'location-outline'
+                      }
+                      size={20}
+                      color={formData.type === type ? '#fff' : '#2e7d32'}
+                    />
                     <Text style={[
                       styles.typeOptionText,
                       formData.type === type && styles.typeOptionTextSelected
@@ -355,10 +486,10 @@ export default function AddressesScreen() {
                 style={styles.formTextArea}
                 value={formData.address}
                 onChangeText={(text) => setFormData({...formData, address: text})}
-                placeholder="House/Flat No., Building, Street, Area"
+                placeholder="House/Flat No., Building, Street, Area, City"
                 placeholderTextColor="#999"
                 multiline
-                numberOfLines={3}
+                numberOfLines={4}
                 textAlignVertical="top"
               />
             </View>
@@ -391,6 +522,39 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 15,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  errorText: {
+    fontSize: 18,
+    color: '#666',
+    marginTop: 15,
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#2e7d32',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -410,15 +574,51 @@ const styles = StyleSheet.create({
     padding: 5,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 25,
     fontWeight: 'bold',
-    color: '#333',
+    textAlign: 'center',
+    color: '#87ab69',
+    flex: 1,
   },
   addButton: {
     padding: 5,
   },
   content: {
     flex: 1,
+  },
+  userBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    padding: 20,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  userDetails: {
+    marginLeft: 12,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  userPhone: {
+    fontSize: 14,
+    color: '#666',
+  },
+  addressCount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2e7d32',
   },
   emptyState: {
     alignItems: 'center',
@@ -502,6 +702,8 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   defaultBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#2e7d32',
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -511,6 +713,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
+    marginLeft: 4,
   },
   addressDetails: {
     marginBottom: 15,
@@ -524,12 +727,18 @@ const styles = StyleSheet.create({
   addressPhone: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   addressText: {
     fontSize: 14,
     color: '#666',
     lineHeight: 20,
+    marginBottom: 4,
+  },
+  addressPincode: {
+    fontSize: 14,
+    color: '#2e7d32',
+    fontWeight: '600',
   },
   addressActions: {
     flexDirection: 'row',
@@ -610,15 +819,17 @@ const styles = StyleSheet.create({
   },
   typeSelector: {
     flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: '#e9ecef',
     borderRadius: 8,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
   },
   typeOption: {
     flex: 1,
-    paddingVertical: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
     backgroundColor: '#fff',
   },
   typeOptionSelected: {
@@ -628,6 +839,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontWeight: '500',
+    marginLeft: 6,
   },
   typeOptionTextSelected: {
     color: '#fff',
@@ -650,7 +862,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     backgroundColor: '#fff',
-    height: 80,
+    height: 100,
   },
   formNote: {
     fontSize: 12,

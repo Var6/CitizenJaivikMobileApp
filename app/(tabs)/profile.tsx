@@ -1,5 +1,5 @@
 // app/(tabs)/profile.tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,15 +9,114 @@ import {
   Alert,
   StatusBar,
   Linking,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+
+interface UserProfile {
+  phone: string;
+  name: string;
+  email: string;
+  addresses: {
+    id: string;
+    type: 'Home' | 'Work' | 'Other';
+    name: string;
+    phone: string;
+    address: string;
+    pincode: string;
+    isDefault: boolean;
+  }[];
+  orders: any[];
+  createdAt: string;
+  lastLoginAt: string;
+  isVerified: boolean;
+}
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Load user data when screen focuses
+  useFocusEffect(
+    React.useCallback(() => {
+      loadUserData();
+    }, [])
+  );
+
+  const loadUserData = async () => {
+    try {
+      const loginStatus = await AsyncStorage.getItem('is_logged_in');
+      const userData = await AsyncStorage.getItem('user_profile');
+      
+      if (loginStatus === 'true' && userData) {
+        setIsLoggedIn(true);
+        setUserProfile(JSON.parse(userData));
+      } else {
+        setIsLoggedIn(false);
+        setUserProfile(null);
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+      setIsLoggedIn(false);
+      setUserProfile(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadUserData();
+    setRefreshing(false);
+  };
+
+  const handleSignOut = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out? Your data will remain on this device.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await AsyncStorage.setItem('is_logged_in', 'false');
+              setIsLoggedIn(false);
+              setUserProfile(null);
+              Alert.alert('Success', 'You have been signed out successfully.');
+            } catch (error) {
+              console.error('Error signing out:', error);
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const handleFeaturePress = (feature: string) => {
+    // Check if user is logged in for protected features
+    const protectedFeatures = ['Personal Information', 'Order History', 'Addresses', 'Notifications'];
+    
+    if (protectedFeatures.includes(feature) && !isLoggedIn) {
+      Alert.alert(
+        'Sign In Required',
+        'Please sign in to access this feature.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign In', onPress: () => router.push('/sign-in') }
+        ]
+      );
+      return;
+    }
+
     switch (feature) {
       case 'Personal Information':
         router.push('/personal-info');
@@ -63,78 +162,127 @@ export default function ProfileScreen() {
       title: 'Personal Information',
       icon: 'person-outline',
       description: 'Manage your account details',
+      protected: true,
     },
     {
       id: '2',
       title: 'Order History',
       icon: 'receipt-outline',
       description: 'View your past orders',
+      protected: true,
     },
     {
       id: '3',
       title: 'Addresses',
       icon: 'location-outline',
       description: 'Manage delivery addresses',
+      protected: true,
     },
     {
       id: '4',
       title: 'Payment Methods',
       icon: 'card-outline',
       description: 'Manage payment options',
+      protected: false,
     },
     {
       id: '5',
       title: 'Notifications',
       icon: 'notifications-outline',
       description: 'Notification preferences',
+      protected: true,
     },
     {
       id: '6',
       title: 'Help & Support',
       icon: 'help-circle-outline',
       description: 'Get help or contact us',
+      protected: false,
     },
     {
       id: '7',
       title: 'About',
       icon: 'information-circle-outline',
       description: 'App version and info',
+      protected: false,
     },
   ];
 
   const renderMenuItem = (item: any) => (
     <TouchableOpacity
       key={item.id}
-      style={styles.menuItem}
+      style={[
+        styles.menuItem,
+        item.protected && !isLoggedIn && styles.disabledMenuItem
+      ]}
       onPress={() => handleFeaturePress(item.title)}
     >
       <View style={styles.menuItemLeft}>
-        <View style={styles.iconContainer}>
-          <Ionicons name={item.icon} size={24} color="#2e7d32" />
+        <View style={[
+          styles.iconContainer,
+          item.protected && !isLoggedIn && styles.disabledIconContainer
+        ]}>
+          <Ionicons 
+            name={item.icon} 
+            size={24} 
+            color={item.protected && !isLoggedIn ? "#ccc" : "#2e7d32"} 
+          />
         </View>
         <View style={styles.menuItemText}>
-          <Text style={styles.menuItemTitle}>{item.title}</Text>
-          <Text style={styles.menuItemDescription}>{item.description}</Text>
+          <Text style={[
+            styles.menuItemTitle,
+            item.protected && !isLoggedIn && styles.disabledText
+          ]}>
+            {item.title}
+          </Text>
+          <Text style={[
+            styles.menuItemDescription,
+            item.protected && !isLoggedIn && styles.disabledText
+          ]}>
+            {item.description}
+            {item.protected && !isLoggedIn && ' (Sign in required)'}
+          </Text>
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={20} color="#ccc" />
+      <Ionicons 
+        name="chevron-forward" 
+        size={20} 
+        color={item.protected && !isLoggedIn ? "#eee" : "#ccc"} 
+      />
     </TouchableOpacity>
   );
 
-  return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f8fdf8" />
+  const renderUserSection = () => {
+    if (isLoggedIn && userProfile) {
+      // Logged in user
+      const defaultAddress = userProfile.addresses.find(addr => addr.isDefault);
       
-      <ScrollView 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Profile</Text>
+      return (
+        <View style={styles.userSection}>
+          <View style={styles.avatarContainer}>
+            <View style={styles.verifiedBadge}>
+              <Ionicons name="checkmark-circle" size={16} color="#2e7d32" />
+            </View>
+            <Ionicons name="person" size={40} color="#2e7d32" />
+          </View>
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>{userProfile.name}</Text>
+            <Text style={styles.userPhone}>{userProfile.phone}</Text>
+            <Text style={styles.userAddress}>
+              {defaultAddress ? `${defaultAddress.address.substring(0, 30)}...` : 'No address'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.signOutButton}
+            onPress={handleSignOut}
+          >
+            <Ionicons name="log-out-outline" size={16} color="#ff4757" />
+          </TouchableOpacity>
         </View>
-
-        {/* User Info Section */}
+      );
+    } else {
+      // Guest user
+      return (
         <View style={styles.userSection}>
           <View style={styles.avatarContainer}>
             <Ionicons name="person" size={40} color="#2e7d32" />
@@ -150,6 +298,74 @@ export default function ProfileScreen() {
             <Text style={styles.signInButtonText}>Sign In</Text>
           </TouchableOpacity>
         </View>
+      );
+    }
+  };
+
+  const renderStatsCards = () => {
+    if (!isLoggedIn || !userProfile) return null;
+
+    return (
+      <View style={styles.statsSection}>
+        <View style={styles.statsCard}>
+          <Ionicons name="receipt-outline" size={24} color="#2e7d32" />
+          <Text style={styles.statsNumber}>{userProfile.orders.length}</Text>
+          <Text style={styles.statsLabel}>Orders</Text>
+        </View>
+        <View style={styles.statsCard}>
+          <Ionicons name="location-outline" size={24} color="#2e7d32" />
+          <Text style={styles.statsNumber}>{userProfile.addresses.length}</Text>
+          <Text style={styles.statsLabel}>Addresses</Text>
+        </View>
+        <View style={styles.statsCard}>
+          <Ionicons name="time-outline" size={24} color="#2e7d32" />
+          <Text style={styles.statsNumber}>
+            {Math.floor((new Date().getTime() - new Date(userProfile.createdAt).getTime()) / (1000 * 3600 * 24))}
+          </Text>
+          <Text style={styles.statsLabel}>Days</Text>
+        </View>
+      </View>
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Ionicons name="leaf" size={50} color="#2e7d32" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fdf8" />
+      
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2e7d32']} />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Profile</Text>
+          {isLoggedIn && (
+            <View style={styles.onlineIndicator}>
+              <View style={styles.onlineDot} />
+              <Text style={styles.onlineText}>Online</Text>
+            </View>
+          )}
+        </View>
+
+        {/* User Info Section */}
+        {renderUserSection()}
+
+        {/* Stats Cards (for logged in users) */}
+        {renderStatsCards()}
 
         {/* Menu Items */}
         <View style={styles.menuSection}>
@@ -202,7 +418,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 10,
+  },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 20,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
@@ -217,6 +446,22 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
+  },
+  onlineIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#2e7d32',
+    marginRight: 6,
+  },
+  onlineText: {
+    fontSize: 12,
+    color: '#2e7d32',
+    fontWeight: '600',
   },
   userSection: {
     flexDirection: 'row',
@@ -238,6 +483,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 15,
+    position: 'relative',
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 2,
   },
   userInfo: {
     flex: 1,
@@ -246,7 +500,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 4,
+    marginBottom: 2,
+  },
+  userPhone: {
+    fontSize: 14,
+    color: '#2e7d32',
+    marginBottom: 2,
+    fontWeight: '500',
+  },
+  userAddress: {
+    fontSize: 12,
+    color: '#666',
   },
   userEmail: {
     fontSize: 14,
@@ -262,6 +526,38 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  signOutButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#fff0f0',
+  },
+  statsSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: '#fff',
+    marginTop: 8,
+    paddingVertical: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  statsCard: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statsNumber: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 5,
+  },
+  statsLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
   },
   menuSection: {
     backgroundColor: '#fff',
@@ -280,6 +576,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f8f9fa',
   },
+  disabledMenuItem: {
+    opacity: 0.6,
+  },
   menuItemLeft: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -294,6 +593,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 15,
   },
+  disabledIconContainer: {
+    backgroundColor: '#f5f5f5',
+  },
   menuItemText: {
     flex: 1,
   },
@@ -306,6 +608,9 @@ const styles = StyleSheet.create({
   menuItemDescription: {
     fontSize: 12,
     color: '#666',
+  },
+  disabledText: {
+    color: '#ccc',
   },
   appInfo: {
     alignItems: 'center',

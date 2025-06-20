@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 
 export default function OrderHistoryScreen() {
   // Sample orders data - replace with actual data from your backend
@@ -106,6 +107,11 @@ export default function OrderHistoryScreen() {
       ]
     );
   };
+ const navigation = useNavigation();
+  
+  React.useLayoutEffect(() => {
+    navigation.setOptions({ headerShown: false });
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -270,9 +276,11 @@ const styles = StyleSheet.create({
     padding: 5,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 25,
     fontWeight: 'bold',
-    color: '#333',
+    textAlign: 'center',
+    color: '#87ab69',
+    flex: 1,
   },
   placeholder: {
     width: 34,

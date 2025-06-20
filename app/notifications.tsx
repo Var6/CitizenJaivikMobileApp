@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 
 interface NotificationSettings {
   pushNotifications: boolean;
@@ -40,6 +41,12 @@ export default function NotificationsScreen() {
     weeklyNewsletter: false,
     farmingTips: true,
   });
+   const navigation = useNavigation();
+    
+    React.useLayoutEffect(() => {
+      navigation.setOptions({ headerShown: false });
+    }, []);
+  
 
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -360,9 +367,11 @@ const styles = StyleSheet.create({
     padding: 5,
   },
   headerTitle: {
-    fontSize: 20,
+ fontSize: 25,
     fontWeight: 'bold',
-    color: '#333',
+    textAlign: 'center',
+    color: '#87ab69',
+    flex: 1,
   },
   resetButton: {
     padding: 5,

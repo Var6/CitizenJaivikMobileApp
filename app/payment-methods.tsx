@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 
 interface PaymentMethod {
   id: string;
@@ -27,6 +28,12 @@ interface PaymentMethod {
 }
 
 export default function PaymentMethodsScreen() {
+   const navigation = useNavigation();
+    
+    React.useLayoutEffect(() => {
+      navigation.setOptions({ headerShown: false });
+    }, []);
+  
   const [selectedMethod, setSelectedMethod] = useState<string>('cod');
   const [showQRModal, setShowQRModal] = useState(false);
 
@@ -348,9 +355,11 @@ const styles = StyleSheet.create({
     padding: 5,
   },
   headerTitle: {
-    fontSize: 20,
+   fontSize: 25,
     fontWeight: 'bold',
-    color: '#333',
+    textAlign: 'center',
+    color: '#87ab69',
+    flex: 1,
   },
   placeholder: {
     width: 34,

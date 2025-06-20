@@ -1,5 +1,5 @@
 // app/sign-in.tsx
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,59 +15,39 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { auth } from '../firebaseConfig';
-import { 
-  PhoneAuthProvider, 
-  signInWithCredential,
-  RecaptchaVerifier 
-} from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+interface UserProfile {
+  phone: string;
+  name: string;
+  email: string;
+  addresses: {
+    id: string;
+    type: 'Home' | 'Work' | 'Other';
+    name: string;
+    phone: string;
+    address: string;
+    pincode: string;
+    isDefault: boolean;
+  }[];
+  orders: any[];
+  createdAt: string;
+  lastLoginAt: string;
+  isVerified: boolean;
+}
 
 export default function SignInScreen() {
+  const [step, setStep] = useState<'phone' | 'profile'>('phone');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [isOtpSent, setIsOtpSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [resendTimer, setResendTimer] = useState(0);
-  const [verificationId, setVerificationId] = useState('');
-  const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null);
-
-  const otpInputs = useRef<(TextInput | null)[]>([]);
-
-  useEffect(() => {
-    // Initialize reCAPTCHA verifier
-    const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-      size: 'invisible',
-      callback: (response: string) => {
-        // reCAPTCHA solved
-        console.log('reCAPTCHA solved');
-      },
-      'expired-callback': () => {
-        // Response expired
-        console.log('reCAPTCHA expired');
-      }
-    });
-    setRecaptchaVerifier(verifier);
-
-    return () => {
-      if (verifier) {
-        verifier.clear();
-      }
-    };
-  }, []);
-
-  // Start resend timer
-  const startResendTimer = () => {
-    setResendTimer(60);
-    const timer = setInterval(() => {
-      setResendTimer((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
+  
+  // Profile setup states
+  const [profileData, setProfileData] = useState({
+    name: '',
+    email: '',
+    address: '',
+    pincode: '',
+  });
 
   // Format phone number
   const formatPhoneNumber = (text: string) => {
@@ -77,144 +57,230 @@ export default function SignInScreen() {
     }
   };
 
-  // Send OTP
-  const handleSendOTP = async () => {
+  // Handle phone number submission
+  const handlePhoneSubmit = async () => {
     if (phoneNumber.length !== 10) {
       Alert.alert('Error', 'Please enter a valid 10-digit phone number');
       return;
     }
 
-    if (!recaptchaVerifier) {
-      Alert.alert('Error', 'reCAPTCHA not initialized. Please try again.');
-      return;
-    }
-
     setIsLoading(true);
+
     try {
-      const phoneProvider = new PhoneAuthProvider(auth);
-      const verificationId = await phoneProvider.verifyPhoneNumber(
-        `+91${phoneNumber}`,
-        recaptchaVerifier
-      );
-      setVerificationId(verificationId);
-      setIsOtpSent(true);
-      setIsLoading(false);
-      startResendTimer();
-      Alert.alert('OTP Sent', `Verification code sent to +91${phoneNumber}`);
-    } catch (error: any) {
-      setIsLoading(false);
-      console.error('OTP Send Error:', error);
-      
-      // Handle specific Firebase errors
-      let errorMessage = 'Failed to send OTP. Please try again.';
-      if (error.code === 'auth/invalid-phone-number') {
-        errorMessage = 'Invalid phone number format.';
-      } else if (error.code === 'auth/quota-exceeded') {
-        errorMessage = 'SMS quota exceeded. Please try again later.';
-      } else if (error.code === 'auth/too-many-requests') {
-        errorMessage = 'Too many requests. Please try again later.';
+      // Check if user already exists
+      const existingUser = await AsyncStorage.getItem('user_profile');
+      if (existingUser) {
+        const userData = JSON.parse(existingUser);
+        if (userData.phone === `+91${phoneNumber}`) {
+          // Existing user - direct login
+          userData.lastLoginAt = new Date().toISOString();
+          await AsyncStorage.setItem('user_profile', JSON.stringify(userData));
+          await AsyncStorage.setItem('is_logged_in', 'true');
+          
+          setIsLoading(false);
+          Alert.alert('Welcome Back! 🎉', `Hello ${userData.name}, successfully signed in!`, [
+            { text: 'Continue', onPress: () => router.replace('/(tabs)/profile') }
+          ]);
+          return;
+        }
       }
       
-      Alert.alert('Error', errorMessage);
+      // New user - setup profile
+      setStep('profile');
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error checking user:', error);
+      setStep('profile');
+      setIsLoading(false);
     }
   };
 
-  // Handle OTP input
-  const handleOtpChange = (text: string, index: number) => {
-    const newOtp = [...otp];
-    newOtp[index] = text;
-    setOtp(newOtp);
-
-    // Auto-focus next input
-    if (text && index < 5) {
-      otpInputs.current[index + 1]?.focus();
+  // Complete profile setup
+  const handleCompleteProfile = async () => {
+    if (!profileData.name || !profileData.email || !profileData.address || !profileData.pincode) {
+      Alert.alert('Error', 'Please fill all fields');
+      return;
     }
-  };
 
-  // Handle OTP backspace
-  const handleOtpKeyPress = (key: string, index: number) => {
-    if (key === 'Backspace' && !otp[index] && index > 0) {
-      otpInputs.current[index - 1]?.focus();
+    // Validate email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(profileData.email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
     }
-  };
 
-  // Verify OTP
-  const handleVerifyOTP = async () => {
-    const otpCode = otp.join('');
-    if (otpCode.length !== 6) {
-      Alert.alert('Error', 'Please enter the complete 6-digit OTP');
+    // Validate pincode
+    if (!/^800\d{3}$/.test(profileData.pincode)) {
+      Alert.alert('Error', 'We only deliver to pincodes starting with 800***');
       return;
     }
 
     setIsLoading(true);
+
+    // Create user profile
+    const userProfile: UserProfile = {
+      phone: `+91${phoneNumber}`,
+      name: profileData.name,
+      email: profileData.email,
+      addresses: [{
+        id: `addr_${Date.now()}`,
+        type: 'Home',
+        name: profileData.name,
+        phone: `+91${phoneNumber}`,
+        address: profileData.address,
+        pincode: profileData.pincode,
+        isDefault: true
+      }],
+      orders: [],
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+      isVerified: true
+    };
+
     try {
-      const credential = PhoneAuthProvider.credential(verificationId, otpCode);
-      const userCredential = await signInWithCredential(auth, credential);
+      await AsyncStorage.setItem('user_profile', JSON.stringify(userProfile));
+      await AsyncStorage.setItem('is_logged_in', 'true');
       
       setIsLoading(false);
       Alert.alert(
-        'Success!', 
-        'Phone number verified successfully!',
-        [
-          {
-            text: 'Continue',
-            onPress: () => {
-              // Store user info if needed
-              console.log('User signed in:', userCredential.user.uid);
-              router.replace('/(tabs)/profile');
-            }
-          }
-        ]
+        'Profile Created! 🎉', 
+        `Welcome ${profileData.name}! Your account has been set up successfully!`,
+        [{ text: 'Get Started', onPress: () => router.replace('/(tabs)/profile') }]
       );
-    } catch (error: any) {
+    } catch (error) {
       setIsLoading(false);
-      console.error('OTP Verification Error:', error);
-      
-      // Handle specific Firebase errors
-      let errorMessage = 'Invalid OTP. Please try again.';
-      if (error.code === 'auth/invalid-verification-code') {
-        errorMessage = 'Invalid verification code. Please check and try again.';
-      } else if (error.code === 'auth/code-expired') {
-        errorMessage = 'Verification code has expired. Please request a new one.';
-      }
-      
-      Alert.alert('Error', errorMessage);
+      Alert.alert('Error', 'Failed to create profile. Please try again.');
     }
   };
 
-  // Resend OTP
-  const handleResendOTP = async () => {
-    if (resendTimer > 0) return;
-    
-    if (!recaptchaVerifier) {
-      Alert.alert('Error', 'reCAPTCHA not initialized. Please try again.');
-      return;
-    }
-    
-    setIsLoading(true);
-    try {
-      const phoneProvider = new PhoneAuthProvider(auth);
-      const newVerificationId = await phoneProvider.verifyPhoneNumber(
-        `+91${phoneNumber}`,
-        recaptchaVerifier
-      );
-      setVerificationId(newVerificationId);
-      setIsLoading(false);
-      startResendTimer();
-      Alert.alert('OTP Resent', `New verification code sent to +91${phoneNumber}`);
-    } catch (error: any) {
-      setIsLoading(false);
-      console.error('Resend OTP Error:', error);
-      Alert.alert('Error', 'Failed to resend OTP. Please try again.');
-    }
-  };
+  const renderPhoneStep = () => (
+    <View style={styles.formSection}>
+      <Text style={styles.formTitle}>Enter Phone Number</Text>
+      
+      <View style={styles.phoneInputContainer}>
+        <View style={styles.countryCode}>
+          <Text style={styles.countryCodeText}>🇮🇳 +91</Text>
+        </View>
+        <TextInput
+          style={styles.phoneInput}
+          value={phoneNumber}
+          onChangeText={formatPhoneNumber}
+          placeholder="Enter 10-digit phone number"
+          placeholderTextColor="#999"
+          keyboardType="phone-pad"
+          maxLength={10}
+          autoFocus
+        />
+      </View>
 
-  // Go back to phone input
-  const handleEditPhone = () => {
-    setIsOtpSent(false);
-    setOtp(['', '', '', '', '', '']);
-    setResendTimer(0);
-  };
+      <Text style={styles.helperText}>
+        Enter your mobile number to continue
+      </Text>
+
+      <TouchableOpacity 
+        style={[styles.primaryButton, (!phoneNumber || phoneNumber.length !== 10 || isLoading) && styles.disabledButton]}
+        onPress={handlePhoneSubmit}
+        disabled={!phoneNumber || phoneNumber.length !== 10 || isLoading}
+      >
+        {isLoading ? (
+          <Text style={styles.primaryButtonText}>Checking...</Text>
+        ) : (
+          <>
+            <Ionicons name="arrow-forward-outline" size={20} color="#fff" style={{marginRight: 8}} />
+            <Text style={styles.primaryButtonText}>Continue</Text>
+          </>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderProfileStep = () => (
+    <View style={styles.formSection}>
+      <Text style={styles.formTitle}>Complete Your Profile</Text>
+      <Text style={styles.formSubtitle}>Set up your delivery details</Text>
+      
+      {/* Phone Display */}
+      <View style={styles.phoneDisplay}>
+        <Text style={styles.phoneDisplayText}>+91 {phoneNumber}</Text>
+        <TouchableOpacity onPress={() => setStep('phone')}>
+          <Ionicons name="create-outline" size={20} color="#2e7d32" />
+        </TouchableOpacity>
+      </View>
+      
+      {/* Full Name */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Full Name *</Text>
+        <TextInput
+          style={styles.textInput}
+          value={profileData.name}
+          onChangeText={(text) => setProfileData({...profileData, name: text})}
+          placeholder="Enter your full name"
+          placeholderTextColor="#999"
+        />
+      </View>
+
+      {/* Email */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Email Address *</Text>
+        <TextInput
+          style={styles.textInput}
+          value={profileData.email}
+          onChangeText={(text) => setProfileData({...profileData, email: text})}
+          placeholder="Enter your email"
+          placeholderTextColor="#999"
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+      </View>
+
+      {/* Address */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Delivery Address *</Text>
+        <TextInput
+          style={styles.textAreaInput}
+          value={profileData.address}
+          onChangeText={(text) => setProfileData({...profileData, address: text})}
+          placeholder="House/Flat No., Building, Street, Area"
+          placeholderTextColor="#999"
+          multiline
+          numberOfLines={3}
+          textAlignVertical="top"
+        />
+      </View>
+
+      {/* Pincode */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Pincode *</Text>
+        <TextInput
+          style={styles.textInput}
+          value={profileData.pincode}
+          onChangeText={(text) => setProfileData({...profileData, pincode: text})}
+          placeholder="Enter 6-digit pincode"
+          placeholderTextColor="#999"
+          keyboardType="number-pad"
+          maxLength={6}
+        />
+        <Text style={styles.deliveryNote}>
+          We deliver to pincodes starting with 800*** only
+        </Text>
+      </View>
+
+      <TouchableOpacity 
+        style={[styles.primaryButton, isLoading && styles.disabledButton]}
+        onPress={handleCompleteProfile}
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <Text style={styles.primaryButtonText}>Creating Profile...</Text>
+        ) : (
+          <>
+            <Ionicons name="person-add-outline" size={20} color="#fff" style={{marginRight: 8}} />
+            <Text style={styles.primaryButtonText}>Complete Setup</Text>
+          </>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -224,6 +290,7 @@ export default function SignInScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoid}
       >
+        
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity 
@@ -232,8 +299,21 @@ export default function SignInScreen() {
           >
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Sign In</Text>
+          <Text style={styles.headerTitle}>
+            {step === 'phone' ? 'Sign In' : 'Setup Profile'}
+          </Text>
           <View style={styles.placeholder} />
+        </View>
+
+        {/* Progress Indicator */}
+        <View style={styles.progressContainer}>
+          <View style={[styles.progressStep, step === 'phone' && styles.activeStep, step === 'profile' && styles.completedStep]}>
+            <Text style={[styles.progressText, step === 'phone' && styles.activeProgressText, step === 'profile' && styles.completedProgressText]}>1</Text>
+          </View>
+          <View style={[styles.progressLine, step === 'profile' && styles.completedLine]} />
+          <View style={[styles.progressStep, step === 'profile' && styles.activeStep]}>
+            <Text style={[styles.progressText, step === 'profile' && styles.activeProgressText]}>2</Text>
+          </View>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -244,145 +324,21 @@ export default function SignInScreen() {
             </View>
             <Text style={styles.welcomeTitle}>Welcome to Citizen Jaivik</Text>
             <Text style={styles.welcomeSubtitle}>
-              {isOtpSent 
-                ? 'Enter the verification code sent to your phone'
-                : 'Enter your phone number to get started with organic shopping'
-              }
+              {step === 'phone' && 'Enter your phone number to get started'}
+              {step === 'profile' && 'Complete your profile for seamless ordering'}
             </Text>
           </View>
 
-          {!isOtpSent ? (
-            /* Phone Number Input */
-            <View style={styles.formSection}>
-              <Text style={styles.formTitle}>Enter Phone Number</Text>
-              
-              <View style={styles.phoneInputContainer}>
-                <View style={styles.countryCode}>
-                  <Text style={styles.countryCodeText}>🇮🇳 +91</Text>
-                </View>
-                <TextInput
-                  style={styles.phoneInput}
-                  value={phoneNumber}
-                  onChangeText={formatPhoneNumber}
-                  placeholder="Enter 10-digit phone number"
-                  placeholderTextColor="#999"
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                  autoFocus
-                />
-              </View>
+          {/* Form Steps */}
+          {step === 'phone' && renderPhoneStep()}
+          {step === 'profile' && renderProfileStep()}
 
-              <Text style={styles.helperText}>
-                We'll send you a verification code via SMS
-              </Text>
-
-              <TouchableOpacity 
-                style={[styles.primaryButton, (!phoneNumber || phoneNumber.length !== 10 || isLoading) && styles.disabledButton]}
-                onPress={handleSendOTP}
-                disabled={!phoneNumber || phoneNumber.length !== 10 || isLoading}
-              >
-                {isLoading ? (
-                  <Text style={styles.primaryButtonText}>Sending OTP...</Text>
-                ) : (
-                  <>
-                    <Ionicons name="paper-plane-outline" size={20} color="#fff" style={{marginRight: 8}} />
-                    <Text style={styles.primaryButtonText}>Send OTP</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          ) : (
-            /* OTP Verification */
-            <View style={styles.formSection}>
-              <Text style={styles.formTitle}>Enter Verification Code</Text>
-              
-              <View style={styles.phoneDisplay}>
-                <Text style={styles.phoneDisplayText}>+91 {phoneNumber}</Text>
-                <TouchableOpacity onPress={handleEditPhone}>
-                  <Ionicons name="create-outline" size={20} color="#2e7d32" />
-                </TouchableOpacity>
-              </View>
-
-              {/* OTP Input */}
-              <View style={styles.otpContainer}>
-                {otp.map((digit, index) => (
-                  <TextInput
-                    key={index}
-                    ref={(ref) => { otpInputs.current[index] = ref; }}
-                    style={[styles.otpInput, digit && styles.otpInputFilled]}
-                    value={digit}
-                    onChangeText={(text) => handleOtpChange(text, index)}
-                    onKeyPress={({ nativeEvent }) => handleOtpKeyPress(nativeEvent.key, index)}
-                    keyboardType="number-pad"
-                    maxLength={1}
-                    textAlign="center"
-                  />
-                ))}
-              </View>
-
-              {/* Resend OTP */}
-              <View style={styles.resendContainer}>
-                <Text style={styles.resendText}>Didn't receive the code?</Text>
-                <TouchableOpacity 
-                  onPress={handleResendOTP}
-                  disabled={resendTimer > 0 || isLoading}
-                >
-                  <Text style={[styles.resendButton, (resendTimer > 0 || isLoading) && styles.disabledText]}>
-                    {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity 
-                style={[styles.primaryButton, (otp.join('').length !== 6 || isLoading) && styles.disabledButton]}
-                onPress={handleVerifyOTP}
-                disabled={otp.join('').length !== 6 || isLoading}
-              >
-                {isLoading ? (
-                  <Text style={styles.primaryButtonText}>Verifying...</Text>
-                ) : (
-                  <>
-                    <Ionicons name="checkmark-circle-outline" size={20} color="#fff" style={{marginRight: 8}} />
-                    <Text style={styles.primaryButtonText}>Verify & Sign In</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Terms & Privacy */}
-          <View style={styles.termsSection}>
-            <Text style={styles.termsText}>
-              By continuing, you agree to our{' '}
-              <Text style={styles.termsLink}>Terms of Service</Text> and{' '}
-              <Text style={styles.termsLink}>Privacy Policy</Text>
+          {/* Info Note */}
+          <View style={styles.infoNote}>
+            <Ionicons name="information-circle-outline" size={20} color="#2e7d32" />
+            <Text style={styles.infoText}>
+              Your data is stored securely on your device. For a new device, you'll need to set up your profile again.
             </Text>
-          </View>
-
-          {/* Benefits Section */}
-          <View style={styles.benefitsSection}>
-            <Text style={styles.benefitsTitle}>Why Sign In?</Text>
-            <View style={styles.benefitItem}>
-              <Ionicons name="checkmark-circle" size={20} color="#2e7d32" />
-              <Text style={styles.benefitText}>Track your orders in real-time</Text>
-            </View>
-            <View style={styles.benefitItem}>
-              <Ionicons name="checkmark-circle" size={20} color="#2e7d32" />
-              <Text style={styles.benefitText}>Save delivery addresses</Text>
-            </View>
-            <View style={styles.benefitItem}>
-              <Ionicons name="checkmark-circle" size={20} color="#2e7d32" />
-              <Text style={styles.benefitText}>Get personalized recommendations</Text>
-            </View>
-            <View style={styles.benefitItem}>
-              <Ionicons name="checkmark-circle" size={20} color="#2e7d32" />
-              <Text style={styles.benefitText}>Exclusive offers and discounts</Text>
-            </View>
-          </View>
-
-          {/* reCAPTCHA container - required for Firebase Auth */}
-          <View style={{ height: 0, width: 0, opacity: 0 }}>
-            <div id="recaptcha-container"></div>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -407,11 +363,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
   backButton: {
     padding: 5,
@@ -424,37 +375,78 @@ const styles = StyleSheet.create({
   placeholder: {
     width: 34,
   },
+  progressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    backgroundColor: '#fff',
+  },
+  progressStep: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#e9ecef',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeStep: {
+    backgroundColor: '#2e7d32',
+  },
+  completedStep: {
+    backgroundColor: '#2e7d32',
+  },
+  progressText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#666',
+  },
+  activeProgressText: {
+    color: '#fff',
+  },
+  completedProgressText: {
+    color: '#fff',
+  },
+  progressLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: '#e9ecef',
+    marginHorizontal: 10,
+  },
+  completedLine: {
+    backgroundColor: '#2e7d32',
+  },
   content: {
     flex: 1,
   },
   welcomeSection: {
     alignItems: 'center',
     backgroundColor: '#fff',
-    paddingVertical: 40,
+    paddingVertical: 30,
     paddingHorizontal: 20,
     marginBottom: 8,
   },
   welcomeIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: '#f0f8f0',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 15,
   },
   welcomeTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 8,
     textAlign: 'center',
   },
   welcomeSubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 20,
   },
   formSection: {
     backgroundColor: '#fff',
@@ -471,8 +463,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 20,
+    marginBottom: 8,
     textAlign: 'center',
+  },
+  formSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
   },
   phoneInputContainer: {
     flexDirection: 'row',
@@ -522,41 +520,39 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 20,
   },
-  otpContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  inputGroup: {
     marginBottom: 20,
   },
-  otpInput: {
-    width: 45,
-    height: 50,
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  textInput: {
     borderWidth: 1,
     borderColor: '#e9ecef',
     borderRadius: 8,
-    fontSize: 18,
-    fontWeight: 'bold',
+    padding: 12,
+    fontSize: 16,
     color: '#333',
+    backgroundColor: '#fff',
   },
-  otpInputFilled: {
-    borderColor: '#2e7d32',
-    backgroundColor: '#f0f8f0',
+  textAreaInput: {
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: '#333',
+    backgroundColor: '#fff',
+    height: 80,
   },
-  resendContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  resendText: {
-    fontSize: 14,
+  deliveryNote: {
+    fontSize: 12,
     color: '#666',
-    marginBottom: 5,
-  },
-  resendButton: {
-    fontSize: 14,
-    color: '#2e7d32',
-    fontWeight: '600',
-  },
-  disabledText: {
-    color: '#ccc',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   primaryButton: {
     flexDirection: 'row',
@@ -574,45 +570,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  termsSection: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  termsText: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  termsLink: {
-    color: '#2e7d32',
-    fontWeight: '600',
-  },
-  benefitsSection: {
-    backgroundColor: '#fff',
-    margin: 15,
-    padding: 20,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 3,
-  },
-  benefitsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
-  },
-  benefitItem: {
+  infoNote: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
+    alignItems: 'flex-start',
+    backgroundColor: '#e8f5e8',
+    margin: 15,
+    padding: 15,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2e7d32',
   },
-  benefitText: {
-    fontSize: 14,
-    color: '#666',
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#4a7c59',
     marginLeft: 10,
+    lineHeight: 18,
   },
 });

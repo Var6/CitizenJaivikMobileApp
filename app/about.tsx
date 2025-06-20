@@ -13,6 +13,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
+import LogoToo from '@/components/ui/LogoToo';
 
 export default function AboutScreen() {
   const handleContactPress = (type: string, value: string) => {
@@ -111,6 +113,11 @@ export default function AboutScreen() {
       color: '#25d366'
     }
   ];
+   const navigation = useNavigation();
+    
+    React.useLayoutEffect(() => {
+      navigation.setOptions({ headerShown: false });
+    }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -118,6 +125,12 @@ export default function AboutScreen() {
       
       {/* Header */}
       <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>About</Text>
         <View style={styles.placeholder} />
       </View>
@@ -130,7 +143,7 @@ export default function AboutScreen() {
         {/* App Logo & Name */}
         <View style={styles.logoSection}>
           <View style={styles.logoContainer}>
-            <Ionicons name="leaf" size={60} color="#2e7d32" />
+          <LogoToo size="large" />
           </View>
           <Text style={styles.appName}>Citizen Jaivik</Text>
           <Text style={styles.appTagline}>Fresh • Organic • Local</Text>
@@ -265,10 +278,10 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 25,
-    textAlign: 'center',
     fontWeight: 'bold',
-    width:'100%',
+    textAlign: 'center',
     color: '#87ab69',
+    flex: 1,
   },
   placeholder: {
     width: 34,

@@ -13,9 +13,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 
 export default function HelpSupportScreen() {
+  const navigation = useNavigation();
   const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
+
+  // Hide the default header
+  React.useLayoutEffect(() => {
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
 
   const contactOptions = [
     {
@@ -140,7 +147,7 @@ export default function HelpSupportScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
       
-      {/* Header */}
+      {/* Custom Header */}
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}
@@ -305,9 +312,11 @@ const styles = StyleSheet.create({
     padding: 5,
   },
   headerTitle: {
-    fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    textAlign: 'center',
+    color: '#87ab69',
+    flex: 1,
+    fontSize: 25,
   },
   placeholder: {
     width: 34,
@@ -396,15 +405,14 @@ const styles = StyleSheet.create({
   quickActionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -7.5,
+    justifyContent: 'space-between',
   },
   quickActionCard: {
-    width: '50%',
+    width: '48%',
     backgroundColor: '#f8f9fa',
     padding: 15,
     borderRadius: 10,
     alignItems: 'center',
-    marginHorizontal: 7.5,
     marginBottom: 15,
   },
   quickActionIcon: {
