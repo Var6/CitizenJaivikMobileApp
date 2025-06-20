@@ -7,13 +7,54 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  StatusBar,
+  Linking,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 
 export default function ProfileScreen() {
+  const insets = useSafeAreaInsets();
+
   const handleFeaturePress = (feature: string) => {
-    Alert.alert('Coming Soon', `${feature} feature will be available soon!`);
+    switch (feature) {
+      case 'Personal Information':
+        router.push('/personal-info');
+        break;
+      case 'Order History':
+        router.push('/order-history');
+        break;
+      case 'Addresses':
+        router.push('/addresses');
+        break;
+      case 'Payment Methods':
+        router.push('/payment-methods');
+        break;
+      case 'Notifications':
+        router.push('/notifications');
+        break;
+      case 'Help & Support':
+        router.push('/help-support');
+        break;
+      case 'About':
+        router.push('/about');
+        break;
+      case 'Sign In':
+        router.push('/sign-in');
+        break;
+      case 'Website':
+        Linking.openURL('https://www.citizenagriculture.in/');
+        break;
+      case 'Facebook':
+        Linking.openURL('https://www.facebook.com/Citizenagriculture');
+        break;
+      case 'Instagram':
+        Linking.openURL('https://www.instagram.com/citizenjaivik/');
+        break;
+      default:
+        Alert.alert('Coming Soon', `${feature} feature will be available soon!`);
+    }
   };
 
   const menuItems = [
@@ -81,8 +122,13 @@ export default function ProfileScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fdf8" />
+      
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
+      >
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Profile</Text>
@@ -147,7 +193,7 @@ export default function ProfileScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -161,6 +207,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   headerTitle: {
     fontSize: 24,
@@ -173,6 +224,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     padding: 20,
     marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   avatarContainer: {
     width: 60,
@@ -210,6 +266,11 @@ const styles = StyleSheet.create({
   menuSection: {
     backgroundColor: '#fff',
     marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   menuItem: {
     flexDirection: 'row',
@@ -251,6 +312,11 @@ const styles = StyleSheet.create({
     padding: 30,
     backgroundColor: '#fff',
     marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   appName: {
     fontSize: 20,
@@ -274,6 +340,11 @@ const styles = StyleSheet.create({
     padding: 20,
     marginTop: 8,
     marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   socialTitle: {
     fontSize: 16,

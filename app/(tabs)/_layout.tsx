@@ -1,10 +1,14 @@
+// app/(tabs)/_layout.tsx - Updated with safe area handling
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '../../context/CartContext';
 
 export default function TabLayout() {
   const { itemCount } = useCart();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -15,11 +19,13 @@ export default function TabLayout() {
           backgroundColor: '#fff',
           borderTopWidth: 1,
           borderTopColor: '#e9ecef',
-          paddingBottom: 5,
+          paddingBottom: Platform.OS === 'ios' ? insets.bottom : 10,
           paddingTop: 5,
-          height: 60,
+          height: Platform.OS === 'ios' ? 60 + insets.bottom : 70,
+          paddingHorizontal: 10,
         },
         headerShown: false,
+        tabBarHideOnKeyboard: true, // Hide tab bar when keyboard is open
       }}
     >
       <Tabs.Screen
@@ -57,6 +63,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
           ),
+        }}
+      />
+      {/* Hide the explore tab */}
+      <Tabs.Screen
+        name="explore"
+        options={{
+          href: null, // This hides the tab
         }}
       />
     </Tabs>

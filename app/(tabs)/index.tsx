@@ -9,24 +9,28 @@ import {
   TouchableOpacity,
   FlatList,
   Dimensions,
+  Platform,
+  StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { productAPI, type Product } from '../../services/api';
 import { useCart } from '../../context/CartContext';
 import CitizenJaivikLogo from '../../components/ui/Logo';
+import Entypo from '@expo/vector-icons/Entypo';
 import LoadingScreen from '../../components/ui/LoadingScreen';
 
 const { width } = Dimensions.get('window');
-const PRODUCT_WIDTH = (width - 60) / 2; // 2 products per row with margins
+const PRODUCT_WIDTH = (width - 60) / 2;
 
 export default function HomeScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const { addToCart, itemCount } = useCart();
+  const { cart, addToCart, updateQuantity, removeFromCart, itemCount } = useCart();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     loadInitialData();
@@ -35,14 +39,11 @@ export default function HomeScreen() {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      
-      // Load all data in parallel
       const [allProducts, categoriesData, featuredData] = await Promise.all([
         productAPI.getAllProducts(),
         productAPI.getCategories(),
         productAPI.getFeaturedProducts(),
       ]);
-
       setProducts(allProducts);
       setCategories(categoriesData);
       setFeaturedProducts(featuredData);
@@ -53,19 +54,37 @@ export default function HomeScreen() {
     }
   };
 
+  // Get quantity of specific product in cart
+  const getProductQuantityInCart = (productId: string): number => {
+    const cartItem = cart.find(item => item._id === productId);
+    return cartItem ? cartItem.quantity : 0;
+  };
+
   const handleAddToCart = async (product: Product) => {
     try {
       const cartItem = { ...product, quantity: 1 };
       await addToCart(cartItem);
-      // You can add a toast notification here
       console.log('Added to cart:', product.name);
     } catch (error) {
       console.error('Error adding to cart:', error);
     }
   };
 
+  const handleIncreaseQuantity = async (productId: string) => {
+    const currentQuantity = getProductQuantityInCart(productId);
+    await updateQuantity(productId, currentQuantity + 1);
+  };
+
+  const handleDecreaseQuantity = async (productId: string) => {
+    const currentQuantity = getProductQuantityInCart(productId);
+    if (currentQuantity > 1) {
+      await updateQuantity(productId, currentQuantity - 1);
+    } else {
+      await removeFromCart(productId);
+    }
+  };
+
   const handleCategoryPress = (category: string) => {
-    // Navigate to products screen with category filter
     router.push('/products');
   };
 
@@ -73,47 +92,78 @@ export default function HomeScreen() {
     router.push('/cart');
   };
 
-  const renderProductCard = ({ item }: { item: Product }) => (
-    <View style={styles.productCard}>
-      <Image source={{ uri: item.image }} style={styles.productImage} />
-      <View style={styles.productInfo}>
-        <Text style={styles.productName} numberOfLines={2}>
-          {item.name}
-        </Text>
-        <Text style={styles.productCategory}>{item.category}</Text>
-        <Text style={styles.farmerName}>by {item.farmerName}</Text>
-        <View style={styles.priceRow}>
-          <Text style={styles.price}>₹{item.price}</Text>
-          <Text style={styles.unit}>/{item.unit}</Text>
-        </View>
-        <TouchableOpacity
-          style={[
-            styles.addButton,
-            !item.inStock && styles.addButtonDisabled
-          ]}
-          onPress={() => handleAddToCart(item)}
-          disabled={!item.inStock}
-        >
-          <Ionicons 
-            name="add" 
-            size={16} 
-            color={item.inStock ? '#fff' : '#999'} 
-          />
-          <Text style={[
-            styles.addButtonText,
-            !item.inStock && styles.addButtonTextDisabled
-          ]}>
-            {item.inStock ? 'Add' : 'Out of Stock'}
+  const renderProductCard = ({ item }: { item: Product }) => {
+    const quantityInCart = getProductQuantityInCart(item._id);
+    
+    return (
+      <View style={styles.productCard}>
+        <Image source={{ uri: item.image }} style={styles.productImage} />
+        <View style={styles.productInfo}>
+          <Text style={styles.productName} numberOfLines={2}>
+            {item.name}
           </Text>
-        </TouchableOpacity>
-      </View>
-      {!item.inStock && (
-        <View style={styles.outOfStockOverlay}>
-          <Text style={styles.outOfStockText}>Out of Stock</Text>
+          <Text style={styles.productCategory}>{item.category}</Text>
+          <Text style={styles.farmerName}>by {item.farmerName}</Text>
+          <View style={styles.priceRow}>
+            <Text style={styles.price}>₹{item.price}</Text>
+            <Text style={styles.unit}>/{item.unit}</Text>
+          </View>
+          
+          {/* Cart Controls */}
+          {!item.inStock ? (
+            // Out of Stock Button
+            <View style={styles.outOfStockButton}>
+              <Text style={styles.outOfStockButtonText}>Out of Stock</Text>
+            </View>
+          ) : quantityInCart === 0 ? (
+            // Add to Cart Button
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => handleAddToCart(item)}
+            >
+              <Ionicons name="add" size={16} color="#fff" />
+              <Text style={styles.addButtonText}>Add to Cart</Text>
+            </TouchableOpacity>
+          ) : (
+            // Quantity Controls
+            <View style={styles.quantityContainer}>
+              <TouchableOpacity
+                style={styles.quantityButton}
+                onPress={() => handleDecreaseQuantity(item._id)}
+              >
+                <Ionicons name="remove" size={16} color="#2e7d32" />
+              </TouchableOpacity>
+              
+              <View style={styles.quantityDisplay}>
+                <Text style={styles.quantityText}>{quantityInCart}</Text>
+                <Text style={styles.quantityLabel}>in cart</Text>
+              </View>
+              
+              <TouchableOpacity
+                style={styles.quantityButton}
+                onPress={() => handleIncreaseQuantity(item._id)}
+              >
+                <Ionicons name="add" size={16} color="#2e7d32" />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-      )}
-    </View>
-  );
+        
+        {/* Cart Badge on Product Card */}
+        {quantityInCart > 0 && (
+          <View style={styles.productCartBadge}>
+            <Text style={styles.productCartBadgeText}>{quantityInCart}</Text>
+          </View>
+        )}
+        
+        {!item.inStock && (
+          <View style={styles.outOfStockOverlay}>
+            <Text style={styles.outOfStockText}>Out of Stock</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   const renderCategoryCard = (category: string, index: number) => (
     <TouchableOpacity 
@@ -132,8 +182,12 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fdf8" />
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
+      >
         {/* Header */}
         <View style={styles.header}>
           <CitizenJaivikLogo size="medium" />
@@ -149,6 +203,26 @@ export default function HomeScreen() {
             )}
           </TouchableOpacity>
         </View>
+
+        {/* Cart Summary Bar (only show if items in cart) */}
+        {itemCount > 0 && (
+          <TouchableOpacity style={styles.cartSummaryBar} onPress={handleCartPress}>
+            <View style={styles.cartSummaryContent}>
+              <View style={styles.cartSummaryLeft}>
+                <Ionicons name="cart" size={20} color="#2e7d32" />
+                <Text style={styles.cartSummaryText}>
+                  {itemCount} item{itemCount > 1 ? 's' : ''} in cart
+                </Text>
+              </View>
+              <View style={styles.cartSummaryRight}>
+                <Text style={styles.viewCartText}>
+                  <Entypo name="shopping-basket" size={24} color="green" />
+                  View Basket</Text>
+                <Ionicons name="chevron-forward" size={16} color="#2e7d32" />
+              </View>
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* Welcome Banner */}
         <View style={styles.welcomeBanner}>
@@ -232,7 +306,7 @@ export default function HomeScreen() {
           </View>
           {products.length > 0 ? (
             <FlatList
-              data={products.slice(0, 8)} // Show first 8 products
+              data={products.slice(0, 8)}
               renderItem={renderProductCard}
               keyExtractor={(item) => item._id}
               numColumns={2}
@@ -247,11 +321,8 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
-
-        {/* Bottom spacing */}
-        <View style={styles.bottomSpacing} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -292,6 +363,40 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  cartSummaryBar: {
+    backgroundColor: '#e8f5e8',
+    marginHorizontal: 15,
+    marginTop: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2e7d32',
+  },
+  cartSummaryContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+  },
+  cartSummaryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cartSummaryText: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2e7d32',
+  },
+  cartSummaryRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  viewCartText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2e7d32',
+    marginRight: 4,
   },
   welcomeBanner: {
     backgroundColor: '#e8f5e8',
@@ -455,17 +560,75 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 6,
   },
-  addButtonDisabled: {
-    backgroundColor: '#e9ecef',
-  },
   addButtonText: {
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
     marginLeft: 4,
   },
-  addButtonTextDisabled: {
+  outOfStockButton: {
+    backgroundColor: '#f5f5f5',
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  outOfStockButtonText: {
     color: '#999',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  quantityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f0f8f0',
+    borderRadius: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#2e7d32',
+  },
+  quantityButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2e7d32',
+  },
+  quantityDisplay: {
+    alignItems: 'center',
+    minWidth: 50,
+  },
+  quantityText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2e7d32',
+  },
+  quantityLabel: {
+    fontSize: 10,
+    color: '#666',
+    marginTop: 1,
+  },
+  productCartBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#2e7d32',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  productCartBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
   outOfStockOverlay: {
     position: 'absolute',
@@ -492,8 +655,5 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 15,
     textAlign: 'center',
-  },
-  bottomSpacing: {
-    height: 20,
   },
 });

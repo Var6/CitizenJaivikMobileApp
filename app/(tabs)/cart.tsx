@@ -8,8 +8,9 @@ import {
   Image,
   TouchableOpacity,
   Alert,
+  StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useCart } from '../../context/CartContext';
@@ -24,6 +25,7 @@ export default function CartScreen() {
     itemCount,
     loading 
   } = useCart();
+  const insets = useSafeAreaInsets();
 
   const handleQuantityChange = (productId: string, newQuantity: number) => {
     if (newQuantity < 1) {
@@ -77,7 +79,6 @@ export default function CartScreen() {
       return;
     }
     
-    // Navigate to checkout screen
     router.push('/checkout');
   };
 
@@ -125,16 +126,19 @@ export default function CartScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f8fdf8" />
         <View style={styles.loadingContainer}>
           <Text>Loading cart...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fdf8" />
+      
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Shopping Cart</Text>
@@ -162,7 +166,11 @@ export default function CartScreen() {
       ) : (
         <>
           {/* Cart Items */}
-          <ScrollView style={styles.cartList} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.cartList} 
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 200 }}
+          >
             {cart.map(renderCartItem)}
           </ScrollView>
 
@@ -175,14 +183,14 @@ export default function CartScreen() {
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Delivery Fee</Text>
               <Text style={styles.summaryValue}>
-                {total >= 500 ? 'FREE' : '₹50.00'}
+                {total >= 500 ? 'FREE' : '₹40.00'}
               </Text>
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryRow}>
               <Text style={styles.totalLabel}>Total</Text>
               <Text style={styles.totalValue}>
-                ₹{(total + (total >= 500 ? 0 : 50)).toFixed(2)}
+                ₹{(total + (total >= 500 ? 0 : 40)).toFixed(2)}
               </Text>
             </View>
             {total < 500 && (
@@ -193,7 +201,7 @@ export default function CartScreen() {
           </View>
 
           {/* Checkout Button */}
-          <View style={styles.checkoutContainer}>
+          <View style={[styles.checkoutContainer, { paddingBottom: insets.bottom + 20 }]}>
             <TouchableOpacity
               style={styles.checkoutButton}
               onPress={handleCheckout}
@@ -205,7 +213,7 @@ export default function CartScreen() {
           </View>
         </>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -227,6 +235,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   headerTitle: {
     fontSize: 24,
@@ -299,6 +312,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
+    borderWidth: 1,
+    borderColor: '#f0f8f0',
   },
   itemImage: {
     width: 60,
@@ -370,6 +385,11 @@ const styles = StyleSheet.create({
     padding: 20,
     borderTopWidth: 1,
     borderTopColor: '#e9ecef',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -409,6 +429,8 @@ const styles = StyleSheet.create({
   checkoutContainer: {
     padding: 20,
     backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
   },
   checkoutButton: {
     backgroundColor: '#2e7d32',

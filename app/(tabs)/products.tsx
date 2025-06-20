@@ -1,4 +1,4 @@
-
+// app/(tabs)/products.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -10,12 +10,13 @@ import {
   FlatList,
   Image,
   Dimensions,
-  ActivityIndicator,
+  StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { productAPI, type Product } from '../../services/api';
 import { useCart } from '../../context/CartContext';
+import LoadingScreen from '../../components/ui/LoadingScreen';
 
 const { width } = Dimensions.get('window');
 const PRODUCT_WIDTH = (width - 60) / 2;
@@ -27,7 +28,8 @@ export default function ProductsScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const { addToCart } = useCart();
+  const { cart, addToCart, updateQuantity, removeFromCart, itemCount } = useCart();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     loadData();
@@ -40,9 +42,11 @@ export default function ProductsScreen() {
   const loadData = async () => {
     try {
       setLoading(true);
+      
+      // Load products and categories in parallel
       const [productsData, categoriesData] = await Promise.all([
         productAPI.getAllProducts(),
-        productAPI.getCategories(),
+        loadCategoriesFast(), // Use faster category loading
       ]);
       
       setProducts(productsData);
@@ -51,6 +55,21 @@ export default function ProductsScreen() {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fast category loading using dedicated endpoint
+  const loadCategoriesFast = async (): Promise<string[]> => {
+    try {
+      const response = await fetch('https://citizenagriculture.in/api/categories');
+      const categoriesData = await response.json();
+      
+      // Extract category names from your API response
+      return categoriesData.map((cat: any) => cat.name);
+    } catch (error) {
+      console.error('Error loading categories:', error);
+      // Fallback to original method
+      return await productAPI.getCategories();
     }
   };
 
@@ -75,56 +94,107 @@ export default function ProductsScreen() {
     setFilteredProducts(filtered);
   };
 
+  // Get quantity of specific product in cart
+  const getProductQuantityInCart = (productId: string): number => {
+    const cartItem = cart.find(item => item._id === productId);
+    return cartItem ? cartItem.quantity : 0;
+  };
+
   const handleAddToCart = async (product: Product) => {
     try {
       const cartItem = { ...product, quantity: 1 };
       await addToCart(cartItem);
+      console.log('Added to cart:', product.name);
     } catch (error) {
       console.error('Error adding to cart:', error);
     }
   };
 
-  const renderProductCard = ({ item }: { item: Product }) => (
-    <View style={styles.productCard}>
-      <Image source={{ uri: item.image }} style={styles.productImage} />
-      <View style={styles.productInfo}>
-        <Text style={styles.productName} numberOfLines={2}>
-          {item.name}
-        </Text>
-        <Text style={styles.productCategory}>{item.category}</Text>
-        <Text style={styles.farmerName}>by {item.farmerName}</Text>
-        <View style={styles.priceRow}>
-          <Text style={styles.price}>₹{item.price}</Text>
-          <Text style={styles.unit}>/{item.unit}</Text>
-        </View>
-        <TouchableOpacity
-          style={[
-            styles.addButton,
-            !item.inStock && styles.addButtonDisabled
-          ]}
-          onPress={() => handleAddToCart(item)}
-          disabled={!item.inStock}
-        >
-          <Ionicons 
-            name="add" 
-            size={16} 
-            color={item.inStock ? '#fff' : '#999'} 
-          />
-          <Text style={[
-            styles.addButtonText,
-            !item.inStock && styles.addButtonTextDisabled
-          ]}>
-            {item.inStock ? 'Add' : 'Out of Stock'}
+  const handleIncreaseQuantity = async (productId: string) => {
+    const currentQuantity = getProductQuantityInCart(productId);
+    await updateQuantity(productId, currentQuantity + 1);
+  };
+
+  const handleDecreaseQuantity = async (productId: string) => {
+    const currentQuantity = getProductQuantityInCart(productId);
+    if (currentQuantity > 1) {
+      await updateQuantity(productId, currentQuantity - 1);
+    } else {
+      await removeFromCart(productId);
+    }
+  };
+
+  const renderProductCard = ({ item }: { item: Product }) => {
+    const quantityInCart = getProductQuantityInCart(item._id);
+    
+    return (
+      <View style={styles.productCard}>
+        <Image source={{ uri: item.image }} style={styles.productImage} />
+        <View style={styles.productInfo}>
+          <Text style={styles.productName} numberOfLines={2}>
+            {item.name}
           </Text>
-        </TouchableOpacity>
-      </View>
-      {!item.inStock && (
-        <View style={styles.outOfStockOverlay}>
-          <Text style={styles.outOfStockText}>Out of Stock</Text>
+          <Text style={styles.productCategory}>{item.category}</Text>
+          <Text style={styles.farmerName}>by {item.farmerName}</Text>
+          <View style={styles.priceRow}>
+            <Text style={styles.price}>₹{item.price}</Text>
+            <Text style={styles.unit}>/{item.unit}</Text>
+          </View>
+          
+          {/* Cart Controls */}
+          {!item.inStock ? (
+            // Out of Stock Button
+            <View style={styles.outOfStockButton}>
+              <Text style={styles.outOfStockButtonText}>Out of Stock</Text>
+            </View>
+          ) : quantityInCart === 0 ? (
+            // Add to Cart Button
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => handleAddToCart(item)}
+            >
+              <Ionicons name="add" size={16} color="#fff" />
+              <Text style={styles.addButtonText}>Add</Text>
+            </TouchableOpacity>
+          ) : (
+            // Quantity Controls
+            <View style={styles.quantityContainer}>
+              <TouchableOpacity
+                style={styles.quantityButton}
+                onPress={() => handleDecreaseQuantity(item._id)}
+              >
+                <Ionicons name="remove" size={14} color="#2e7d32" />
+              </TouchableOpacity>
+              
+              <View style={styles.quantityDisplay}>
+                <Text style={styles.quantityText}>{quantityInCart}</Text>
+              </View>
+              
+              <TouchableOpacity
+                style={styles.quantityButton}
+                onPress={() => handleIncreaseQuantity(item._id)}
+              >
+                <Ionicons name="add" size={14} color="#2e7d32" />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-      )}
-    </View>
-  );
+        
+        {/* Cart Badge on Product Card */}
+        {quantityInCart > 0 && (
+          <View style={styles.productCartBadge}>
+            <Text style={styles.productCartBadgeText}>{quantityInCart}</Text>
+          </View>
+        )}
+        
+        {!item.inStock && (
+          <View style={styles.outOfStockOverlay}>
+            <Text style={styles.outOfStockText}>Out of Stock</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   const renderCategoryButton = (category: string) => (
     <TouchableOpacity
@@ -145,18 +215,13 @@ export default function ProductsScreen() {
   );
 
   if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2e7d32" />
-          <Text style={styles.loadingText}>Loading products...</Text>
-        </View>
-      </SafeAreaView>
-    );
+    return <LoadingScreen message="Loading products..." />;
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fdf8" />
+      
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Products</Text>
@@ -164,6 +229,18 @@ export default function ProductsScreen() {
           {filteredProducts.length} products found
         </Text>
       </View>
+
+      {/* Cart Summary Bar (only show if items in cart) */}
+      {itemCount > 0 && (
+        <View style={styles.cartSummaryBar}>
+          <View style={styles.cartSummaryContent}>
+            <Ionicons name="cart" size={18} color="#2e7d32" />
+            <Text style={styles.cartSummaryText}>
+              {itemCount} item{itemCount > 1 ? 's' : ''} in Basket
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -199,7 +276,10 @@ export default function ProductsScreen() {
         keyExtractor={(item) => item._id}
         numColumns={2}
         columnWrapperStyle={styles.productRow}
-        contentContainerStyle={styles.productsContainer}
+        contentContainerStyle={[
+          styles.productsContainer,
+          { paddingBottom: insets.bottom + 80 }
+        ]}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
@@ -211,7 +291,7 @@ export default function ProductsScreen() {
           </View>
         }
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -220,21 +300,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#666',
-  },
   header: {
     padding: 20,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   headerTitle: {
     fontSize: 24,
@@ -246,6 +321,26 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
   },
+  cartSummaryBar: {
+    backgroundColor: '#e8f5e8',
+    marginHorizontal: 15,
+    marginTop: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2e7d32',
+  },
+  cartSummaryContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    justifyContent: 'center',
+  },
+  cartSummaryText: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2e7d32',
+  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -256,6 +351,11 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     borderWidth: 1,
     borderColor: '#e9ecef',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   searchIcon: {
     marginRight: 10,
@@ -276,7 +376,7 @@ const styles = StyleSheet.create({
   },
   categoryButton: {
     paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 20,
     backgroundColor: '#f8f9fa',
     marginRight: 10,
@@ -296,7 +396,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   productsContainer: {
-    padding: 15,
+    padding: 10,
   },
   productRow: {
     justifyContent: 'space-between',
@@ -315,6 +415,8 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
     position: 'relative',
+    borderWidth: 1,
+    borderColor: '#f0f8f0',
   },
   productImage: {
     width: '100%',
@@ -365,17 +467,70 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 6,
   },
-  addButtonDisabled: {
-    backgroundColor: '#e9ecef',
-  },
   addButtonText: {
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
     marginLeft: 4,
   },
-  addButtonTextDisabled: {
+  outOfStockButton: {
+    backgroundColor: '#f5f5f5',
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  outOfStockButtonText: {
     color: '#999',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  quantityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f0f8f0',
+    borderRadius: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#2e7d32',
+  },
+  quantityButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2e7d32',
+  },
+  quantityDisplay: {
+    alignItems: 'center',
+    minWidth: 30,
+  },
+  quantityText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2e7d32',
+  },
+  productCartBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#2e7d32',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  productCartBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
   outOfStockOverlay: {
     position: 'absolute',

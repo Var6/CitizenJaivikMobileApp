@@ -276,11 +276,7 @@ Citizen Jaivik Team`;
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity>
           <Text style={styles.headerTitle}>Checkout</Text>
-          <View style={{ width: 24 }} />
         </View>
 
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -452,9 +448,11 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e9ecef',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 25,
     fontWeight: 'bold',
-    color: '#333',
+    textAlign: 'center',
+    color: '#87ab69',
+    width: '100%',
   },
   scrollView: {
     flex: 1,
