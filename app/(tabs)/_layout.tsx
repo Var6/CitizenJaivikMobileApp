@@ -42,7 +42,7 @@ export default function TabLayout() {
         options={{
           title: 'Products',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="grid" size={size} color={color} />
+            <Ionicons name="nutrition" size={size} color={color} />
           ),
         }}
       />
@@ -63,13 +63,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
           ),
-        }}
-      />
-      {/* Hide the explore tab */}
-      <Tabs.Screen
-        name="explore"
-        options={{
-          href: null, // This hides the tab
         }}
       />
     </Tabs>

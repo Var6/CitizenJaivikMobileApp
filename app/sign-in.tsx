@@ -14,8 +14,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import LogoToo from '@/components/ui/LogoToo';
 
 interface UserProfile {
   phone: string;
@@ -40,6 +41,11 @@ export default function SignInScreen() {
   const [step, setStep] = useState<'phone' | 'profile'>('phone');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const navigation = useNavigation();
+    
+    React.useLayoutEffect(() => {
+      navigation.setOptions({ headerShown: false });
+    }, []);
   
   // Profile setup states
   const [profileData, setProfileData] = useState({
@@ -320,7 +326,7 @@ export default function SignInScreen() {
           {/* Welcome Section */}
           <View style={styles.welcomeSection}>
             <View style={styles.welcomeIcon}>
-              <Ionicons name="leaf" size={50} color="#2e7d32" />
+              <LogoToo size='large'/>
             </View>
             <Text style={styles.welcomeTitle}>Welcome to Citizen Jaivik</Text>
             <Text style={styles.welcomeSubtitle}>
@@ -368,9 +374,11 @@ const styles = StyleSheet.create({
     padding: 5,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 25,
     fontWeight: 'bold',
-    color: '#333',
+    textAlign: 'center',
+    color: '#87ab69',
+    flex: 1,
   },
   placeholder: {
     width: 34,
@@ -380,6 +388,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 20,
+    paddingHorizontal: 55,
     backgroundColor: '#fff',
   },
   progressStep: {

@@ -12,7 +12,7 @@ import {
   Dimensions,
   StatusBar,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {  useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { productAPI, type Product } from '../../services/api';
 import { useCart } from '../../context/CartContext';

@@ -1,4 +1,3 @@
-// app/checkout.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -63,6 +62,25 @@ interface TouchedFields {
   email: boolean;
   address: boolean;
   pincode: boolean;
+}
+
+interface Order {
+  id: string;
+  orderId: string;
+  date: string;
+  items: any[];
+  total: number;
+  status: string;
+  deliveryAddress: string;
+  paymentMethod: string;
+  customerInfo: {
+    name: string;
+    email: string;
+    mobile: string;
+    pincode: string;
+  };
+  platform: string;
+  customerType: string;
 }
 
 export default function CheckoutScreen() {
@@ -160,6 +178,24 @@ export default function CheckoutScreen() {
     setShowAddressModal(false);
   };
 
+  // Save order to local storage for order history
+  const saveOrderToStorage = async (orderData: Order) => {
+    try {
+      // Get existing orders from storage
+      const existingOrders = await AsyncStorage.getItem('order_history');
+      const orders = existingOrders ? JSON.parse(existingOrders) : [];
+      
+      // Add new order to the beginning of the array
+      const updatedOrders = [orderData, ...orders];
+      
+      // Save back to storage
+      await AsyncStorage.setItem('order_history', JSON.stringify(updatedOrders));
+      console.log('✅ Order saved to local storage');
+    } catch (error) {
+      console.error('❌ Error saving order to storage:', error);
+    }
+  };
+
   const saveOrderToProfile = async (orderData: any) => {
     if (!userProfile) return;
 
@@ -238,8 +274,8 @@ export default function CheckoutScreen() {
 
   const sendOrderEmail = async (orderData: any): Promise<boolean> => {
     try {
-      console.log('📧 Opening email composer...');
-      
+      console.log('📧 Sending email via Formspree...');
+
       const emailBody = `🛒 NEW ORDER FROM CITIZEN JAIVIK MOBILE APP
 
 ═══════════════════════════════════════
@@ -285,20 +321,31 @@ Thank you for your business! 🙏
 Citizen Jaivik Team`;
 
       const subject = `🛒 New Mobile Order - ${orderData.name} - ₹${orderData.totalAmount.toFixed(2)}`;
-      
-      const recipientEmail = 'citizenjaivik@gmail.com';
-      
-      const emailUrl = `mailto:${recipientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
-      
-      const canOpen = await Linking.canOpenURL(emailUrl);
-      if (canOpen) {
-        await Linking.openURL(emailUrl);
+
+      const response = await fetch('https://formspree.io/f/mwpbnalw', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          subject: subject,
+          message: emailBody,
+          name: orderData.name,
+          email: orderData.email,
+        }),
+      });
+
+      if (response.ok) {
+        console.log('✅ Formspree email sent successfully!');
         return true;
       } else {
-        throw new Error('No email app available');
+        const errorData = await response.json();
+        console.error('❌ Formspree error:', errorData);
+        return false;
       }
     } catch (error) {
-      console.error('❌ Email composer error:', error);
+      console.error('❌ Network error while sending email:', error);
       return false;
     }
   };
@@ -322,6 +369,7 @@ Citizen Jaivik Team`;
     const deliveryFee = total >= 500 ? 0 : 50;
     const finalTotal = total + deliveryFee;
     const orderId = `MOB-${Date.now()}`;
+    const orderDate = new Date().toISOString();
 
     const orderData = {
       orderId,
@@ -338,44 +386,69 @@ Citizen Jaivik Team`;
         total: item.price * item.quantity,
       })),
       totalAmount: finalTotal,
-      orderDate: new Date().toISOString(),
+      orderDate,
+      platform: 'Mobile App',
+      customerType: isLoggedIn ? 'Registered' : 'Guest',
+    };
+
+    // Create order object for local storage
+    const orderForStorage: Order = {
+      id: orderId,
+      orderId,
+      date: orderDate,
+      items: cart.map((item) => ({
+        _id: item._id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        total: item.price * item.quantity,
+      })),
+      total: finalTotal,
+      status: 'Processing',
+      deliveryAddress: formData.address,
+      paymentMethod: 'Email Order',
+      customerInfo: {
+        name: formData.name,
+        email: formData.email,
+        mobile: `+91${formData.mobile}`,
+        pincode: formData.pincode,
+      },
       platform: 'Mobile App',
       customerType: isLoggedIn ? 'Registered' : 'Guest',
     };
 
     console.log('📱 Placing order:', orderData);
 
-    const success = await sendOrderEmail(orderData);
-
-    if (success) {
+    try {
+      // Send email
+      const emailSuccess = await sendOrderEmail(orderData);
+      
+      // Save order to local storage regardless of email success
+      await saveOrderToStorage(orderForStorage);
+      
       // Save order to user profile if logged in
       if (isLoggedIn) {
         await saveOrderToProfile(orderData);
       }
 
+      // Clear cart and navigate to home
+      await clearCart();
+      setIsSubmitting(false);
+      
+      // Navigate to home page
+      router.push('/');
+      
+      if (!emailSuccess) {
+        console.log('⚠️ Email failed but order was saved locally');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error processing order:', error);
+      setIsSubmitting(false);
       Alert.alert(
-        '📧 Email Ready to Send!',
-        'Your order email is ready. Please send it to complete your order. We will contact you soon for confirmation.',
-        [
-          {
-            text: 'Email Sent ✅',
-            onPress: async () => {
-              await clearCart();
-              router.push('/');
-            }
-          },
-          {
-            text: 'Cancel Order',
-            style: 'cancel',
-            onPress: () => setIsSubmitting(false)
-          }
-        ]
-      );
-    } else {
-      Alert.alert(
-        '❌ Email Error', 
-        'Could not open email app. Please ensure you have an email app installed on your device.',
-        [{ text: 'OK', onPress: () => setIsSubmitting(false) }]
+        'Order Error',
+        'There was an error processing your order. Please try again.',
+        [{ text: 'OK' }]
       );
     }
   };
@@ -392,7 +465,6 @@ Citizen Jaivik Team`;
   }, []);
 
   return (
-    
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -612,15 +684,6 @@ Citizen Jaivik Team`;
               </Text>
             </View>
           </View>
-
-          {/* Info Note */}
-          <View style={styles.infoNote}>
-            <Ionicons name="information-circle" size={20} color="#2e7d32" />
-            <Text style={styles.infoText}>
-              After clicking "Send Order Email", your email app will open with a pre-filled order email. 
-              Please send the email to complete your order.
-            </Text>
-          </View>
         </ScrollView>
 
         {/* Submit Button */}
@@ -630,9 +693,9 @@ Citizen Jaivik Team`;
             onPress={handleSubmit}
             disabled={buttonDisabled || isSubmitting}
           >
-            <Ionicons name="mail" size={20} color="#fff" style={styles.buttonIcon} />
+            <Ionicons name="arrow-forward" size={20} color="#fff" style={styles.buttonIcon} />
             <Text style={styles.submitButtonText}>
-              {isSubmitting ? 'Processing...' : `Send Order Email • ₹${finalTotal.toFixed(2)}`}
+              {isSubmitting ? 'Processing...' : `Order Now • ₹${finalTotal.toFixed(2)}`}
             </Text>
           </TouchableOpacity>
         </View>
@@ -873,7 +936,7 @@ const styles = StyleSheet.create({
     color: '#2e7d32',
   },
   freeDeliveryNote: {
-    fontSize: 12,
+    fontSize: 20,
     color: '#2e7d32',
     marginTop: 8,
     textAlign: 'center',
@@ -977,22 +1040,6 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
     fontStyle: 'italic',
-  },
-  infoNote: {
-    flexDirection: 'row',
-    backgroundColor: '#e8f5e8',
-    margin: 15,
-    marginTop: 0,
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'flex-start',
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#4a7c59',
-    marginLeft: 10,
-    lineHeight: 18,
   },
   submitContainer: {
     padding: 20,

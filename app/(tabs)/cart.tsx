@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   summaryValue: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
     fontWeight: '500',
   },
@@ -421,8 +421,9 @@ const styles = StyleSheet.create({
     color: '#2e7d32',
   },
   freeDeliveryNote: {
-    fontSize: 12,
+    fontSize: 20,
     color: '#2e7d32',
+    fontWeight: 'bold',
     marginTop: 8,
     textAlign: 'center',
   },
