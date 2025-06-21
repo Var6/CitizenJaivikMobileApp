@@ -84,9 +84,16 @@ export default function SignInScreen() {
           await AsyncStorage.setItem('is_logged_in', 'true');
           
           setIsLoading(false);
-          Alert.alert('Welcome Back! 🎉', `Hello ${userData.name}, successfully signed in!`, [
-            { text: 'Continue', onPress: () => router.replace('/(tabs)/profile') }
-          ]);
+         Alert.alert(
+  `🌟 Welcome Back,\n \n ${userData.name}!`, 
+  `🌿 Your organic marketplace awaits!\n\n✨ Discover new arrivals\n🚚 Check your orders\n💚 Continue your wellness journey`,
+  [
+    { 
+      text: '🚀 Let\'s Go!', 
+      onPress: () => router.replace('/(tabs)/profile') 
+    }
+  ]
+);
           return;
         }
       }
@@ -149,10 +156,17 @@ export default function SignInScreen() {
       
       setIsLoading(false);
       Alert.alert(
-        'Profile Created! 🎉', 
-        `Welcome ${profileData.name}! Your account has been set up successfully!`,
-        [{ text: 'Get Started', onPress: () => router.replace('/(tabs)/profile') }]
-      );
+  '✅ Account Created Successfully!', 
+  `🌿 Welcome to the family, ${profileData.name}!\n\n🥬 Discover premium organic products\n🚚 Get fresh deliveries to your doorstep\n💚 Join thousands of health-conscious customers\n\nLet's get you started on your wellness journey!`,
+  [
+    { 
+      text: '🛒 Explore Products', 
+      onPress: () => router.replace('/(tabs)/profile'),
+      style: 'default'
+    }
+  ],
+  { cancelable: false }
+);
     } catch (error) {
       setIsLoading(false);
       Alert.alert('Error', 'Failed to create profile. Please try again.');

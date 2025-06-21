@@ -78,32 +78,37 @@ export default function ProfileScreen() {
   };
 
   const handleSignOut = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out? Your data will remain on this device.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await AsyncStorage.setItem('is_logged_in', 'false');
-              setIsLoggedIn(false);
-              setUserProfile(null);
-              Alert.alert('Success', 'You have been signed out successfully.');
-            } catch (error) {
-              console.error('Error signing out:', error);
-            }
-          }
-        }
-      ]
-    );
-  };
+ Alert.alert(
+   '👋 Sign Out',
+   'Are you sure you want to sign out?\n\n📱 Your data will remain safely stored on this device for when you return.',
+   [
+     { text: 'Cancel', style: 'cancel' },
+     {
+       text: '🚙 Sign Out',
+       style: 'destructive',
+       onPress: async () => {
+         try {
+           await AsyncStorage.setItem('is_logged_in', 'false');
+           setIsLoggedIn(false);
+           setUserProfile(null);
+           Alert.alert(
+             '✅ Signed Out Successfully', 
+             '🌱 Thank you for choosing Citizen Jaivik!\n\nSee you soon for more organic goodness!',
+             [{ text: '👍 OK' }]
+           );
+         } catch (error) {
+           console.error('Error signing out:', error);
+           Alert.alert('❌ Error', 'Something went wrong while signing out. Please try again.');
+         }
+       }
+     }
+   ]
+ );
+};
 
   const handleFeaturePress = (feature: string) => {
     // Check if user is logged in for protected features
-    const protectedFeatures = ['Personal Information', 'Order History', 'Addresses', 'Notifications'];
+    const protectedFeatures = ['Personal Information', 'Order History', 'Addresses', 'Notifications', 'Payment Methods', 'Feedback'];
     
     if (protectedFeatures.includes(feature) && !isLoggedIn) {
       Alert.alert(
@@ -129,6 +134,9 @@ export default function ProfileScreen() {
         break;
       case 'Payment Methods':
         router.push('/payment-methods');
+        break;
+      case 'Feedback':
+        router.push('/feedback');
         break;
       case 'Notifications':
         router.push('/notifications');
@@ -178,29 +186,36 @@ export default function ProfileScreen() {
       description: 'Manage delivery addresses',
       protected: true,
     },
-    {
+     {
       id: '4',
+      title: 'Feedback',
+      icon: 'feedback-outline',
+      description: 'Deliver your feedback directly to us',
+      protected: true,
+    },
+    {
+      id: '5',
       title: 'Payment Methods',
       icon: 'card-outline',
       description: 'Manage payment options',
       protected: false,
     },
     {
-      id: '5',
+      id: '6',
       title: 'Notifications',
       icon: 'notifications-outline',
       description: 'Notification preferences',
       protected: true,
     },
     {
-      id: '6',
+      id: '7',
       title: 'Help & Support',
       icon: 'help-circle-outline',
       description: 'Get help or contact us',
       protected: false,
     },
     {
-      id: '7',
+      id: '8',
       title: 'About',
       icon: 'information-circle-outline',
       description: 'App version and info',
@@ -306,25 +321,35 @@ export default function ProfileScreen() {
     if (!isLoggedIn || !userProfile) return null;
 
     return (
-      <View style={styles.statsSection}>
-        <View style={styles.statsCard}>
-          <Ionicons name="receipt-outline" size={24} color="#2e7d32" />
-          <Text style={styles.statsNumber}>{userProfile.orders.length}</Text>
-          <Text style={styles.statsLabel}>Orders</Text>
-        </View>
-        <View style={styles.statsCard}>
-          <Ionicons name="location-outline" size={24} color="#2e7d32" />
-          <Text style={styles.statsNumber}>{userProfile.addresses.length}</Text>
-          <Text style={styles.statsLabel}>Addresses</Text>
-        </View>
-        <View style={styles.statsCard}>
-          <Ionicons name="time-outline" size={24} color="#2e7d32" />
-          <Text style={styles.statsNumber}>
-            {Math.floor((new Date().getTime() - new Date(userProfile.createdAt).getTime()) / (1000 * 3600 * 24))}
-          </Text>
-          <Text style={styles.statsLabel}>Days</Text>
-        </View>
-      </View>
+     <View style={styles.statsSection}>
+ <TouchableOpacity 
+   style={styles.statsCard}
+   onPress={() => router.push('/order-history')}
+   activeOpacity={0.7}
+ >
+   <Ionicons name="receipt-outline" size={24} color="#2e7d32" />
+   <Text style={styles.statsNumber}>{userProfile.orders.length}</Text>
+   <Text style={styles.statsLabel}>Orders</Text>
+ </TouchableOpacity>
+ 
+ <TouchableOpacity 
+   style={styles.statsCard}
+   onPress={() => router.push('/addresses')}
+   activeOpacity={0.7}
+ >
+   <Ionicons name="location-outline" size={24} color="#2e7d32" />
+   <Text style={styles.statsNumber}>{userProfile.addresses.length}</Text>
+   <Text style={styles.statsLabel}>Addresses</Text>
+ </TouchableOpacity>
+ 
+ <View style={styles.statsCard}>
+   <Ionicons name="time-outline" size={24} color="#2e7d32" />
+   <Text style={styles.statsNumber}>
+     {Math.floor((new Date().getTime() - new Date(userProfile.createdAt).getTime()) / (1000 * 3600 * 24))}
+   </Text>
+   <Text style={styles.statsLabel}>Days</Text>
+ </View>
+</View>
     );
   };
 

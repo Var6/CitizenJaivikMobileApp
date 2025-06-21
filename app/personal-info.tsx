@@ -241,7 +241,7 @@ export default function PersonalInfoScreen() {
           </View>
           <TouchableOpacity 
             style={styles.changePhotoBtn}
-            onPress={() => Alert.alert('Coming Soon', 'Photo upload feature coming soon!')}
+            onPress={() => Alert.alert('Coming Soon', 'Photo upload feature will coming soon!')}
           >
             <Ionicons name="camera-outline" size={16} color="#2e7d32" style={{marginRight: 5}} />
             <Text style={styles.changePhotoText}>Change Photo</Text>

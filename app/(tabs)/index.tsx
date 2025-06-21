@@ -225,12 +225,36 @@ export default function HomeScreen() {
         )}
 
         {/* Welcome Banner */}
-        <View style={styles.welcomeBanner}>
-          <Text style={styles.welcomeTitle}>Welcome to Organic Living!</Text>
-          <Text style={styles.welcomeSubtitle}>
-            Fresh products directly from our trusted farmers
-          </Text>
-        </View>
+       <View style={styles.welcomeBanner}>
+  <View style={styles.welcomeContent}>
+    <View style={styles.welcomeIconContainer}>
+      <Ionicons name="leaf" size={24} color="#2e7d32" />
+    </View>
+    <View style={styles.welcomeTextContainer}>
+      <Text style={styles.welcomeTitle}>Welcome to Organic Living!</Text>
+      <Text style={styles.welcomeSubtitle}>
+        Fresh products directly from our trusted farmers
+      </Text>
+    </View>
+    <View style={styles.welcomeDecoration}>
+      <View style={styles.decorationDot}></View>
+      <View style={styles.decorationDot}></View>
+      <View style={styles.decorationDot}></View>
+    </View>
+  </View>
+  
+  {/* Animated Border Elements */}
+  <View style={styles.borderTop}></View>
+  <View style={styles.borderBottom}></View>
+  <View style={styles.borderLeft}></View>
+  <View style={styles.borderRight}></View>
+  
+  {/* Corner Elements */}
+  <View style={styles.cornerTopLeft}></View>
+  <View style={styles.cornerTopRight}></View>
+  <View style={styles.cornerBottomLeft}></View>
+  <View style={styles.cornerBottomRight}></View>
+</View>
 
         {/* Quick Stats */}
         <View style={styles.statsSection}>
@@ -397,24 +421,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2e7d32',
     marginRight: 4,
-  },
-  welcomeBanner: {
-    backgroundColor: '#e8f5e8',
-    margin: 15,
-    padding: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  welcomeTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2e7d32',
-    marginBottom: 4,
-  },
-  welcomeSubtitle: {
-    fontSize: 14,
-    color: '#4a7c59',
-    textAlign: 'center',
   },
   statsSection: {
     flexDirection: 'row',
@@ -656,4 +662,158 @@ const styles = StyleSheet.create({
     marginTop: 15,
     textAlign: 'center',
   },
+  welcomeBanner: {
+  position: 'relative',
+  margin: 15,
+  marginTop: 20,
+  backgroundColor: '#fff',
+  borderRadius: 16,
+  overflow: 'hidden',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.15,
+  shadowRadius: 8,
+  elevation: 8,
+},
+welcomeContent: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  padding: 20,
+  paddingVertical: 24,
+  backgroundColor: 'linear-gradient(135deg, #f0f8f0 0%, #e8f5e8 100%)',
+  borderRadius: 16,
+  borderWidth: 1,
+  borderColor: '#e0f2e0',
+},
+welcomeIconContainer: {
+  width: 48,
+  height: 48,
+  borderRadius: 24,
+  backgroundColor: '#fff',
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginRight: 15,
+  shadowColor: '#2e7d32',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.2,
+  shadowRadius: 4,
+  elevation: 4,
+  borderWidth: 2,
+  borderColor: '#c8e6c9',
+},
+welcomeTextContainer: {
+  flex: 1,
+},
+welcomeTitle: {
+  fontSize: 18,
+  fontWeight: 'bold',
+  color: '#1b5e20',
+  marginBottom: 6,
+  textShadowColor: 'rgba(46, 125, 50, 0.1)',
+  textShadowOffset: { width: 1, height: 1 },
+  textShadowRadius: 2,
+},
+welcomeSubtitle: {
+  fontSize: 14,
+  color: '#2e7d32',
+  lineHeight: 20,
+  opacity: 0.9,
+},
+welcomeDecoration: {
+  flexDirection: 'column',
+  alignItems: 'center',
+  marginLeft: 10,
+},
+decorationDot: {
+  width: 6,
+  height: 6,
+  borderRadius: 3,
+  backgroundColor: '#81c784',
+  marginVertical: 2,
+  opacity: 0.7,
+},
+
+// Animated Border Elements
+borderTop: {
+  position: 'absolute',
+  top: 0,
+  left: '20%',
+  right: '20%',
+  height: 3,
+  backgroundColor: '#4caf50',
+  borderRadius: 2,
+},
+borderBottom: {
+  position: 'absolute',
+  bottom: 0,
+  left: '20%',
+  right: '20%',
+  height: 3,
+  backgroundColor: '#4caf50',
+  borderRadius: 2,
+},
+borderLeft: {
+  position: 'absolute',
+  left: 0,
+  top: '25%',
+  bottom: '25%',
+  width: 3,
+  backgroundColor: '#4caf50',
+  borderRadius: 2,
+},
+borderRight: {
+  position: 'absolute',
+  right: 0,
+  top: '25%',
+  bottom: '25%',
+  width: 3,
+  backgroundColor: '#4caf50',
+  borderRadius: 2,
+},
+
+// Corner Elements
+cornerTopLeft: {
+  position: 'absolute',
+  top: 8,
+  left: 8,
+  width: 16,
+  height: 16,
+  borderTopWidth: 3,
+  borderLeftWidth: 3,
+  borderColor: '#66bb6a',
+  borderTopLeftRadius: 8,
+},
+cornerTopRight: {
+  position: 'absolute',
+  top: 8,
+  right: 8,
+  width: 16,
+  height: 16,
+  borderTopWidth: 3,
+  borderRightWidth: 3,
+  borderColor: '#66bb6a',
+  borderTopRightRadius: 8,
+},
+cornerBottomLeft: {
+  position: 'absolute',
+  bottom: 8,
+  left: 8,
+  width: 16,
+  height: 16,
+  borderBottomWidth: 3,
+  borderLeftWidth: 3,
+  borderColor: '#66bb6a',
+  borderBottomLeftRadius: 8,
+},
+cornerBottomRight: {
+  position: 'absolute',
+  bottom: 8,
+  right: 8,
+  width: 16,
+  height: 16,
+  borderBottomWidth: 3,
+  borderRightWidth: 3,
+  borderColor: '#66bb6a',
+  borderBottomRightRadius: 8,
+},
 });

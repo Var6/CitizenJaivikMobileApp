@@ -207,7 +207,7 @@ export default function CartScreen() {
               onPress={handleCheckout}
             >
               <Text style={styles.checkoutButtonText}>
-                Proceed to Checkout • ₹{(total + (total >= 500 ? 0 : 50)).toFixed(2)}
+                Proceed to Checkout • ₹{(total + (total >= 500 ? 0 : 40)).toFixed(2)}
               </Text>
             </TouchableOpacity>
           </View>

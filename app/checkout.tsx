@@ -18,6 +18,7 @@ import { router } from 'expo-router';
 import { useCart } from '../context/CartContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import { scheduleFeedbackNotification } from '../utils/feedbackNotifications';
 
 interface Address {
   id: string;
@@ -350,108 +351,111 @@ Citizen Jaivik Team`;
     }
   };
 
-  const handleSubmit = async () => {
-    setSubmitAttempted(true);
-    const isValid = validateForm();
-    
-    if (!isValid) {
-      Alert.alert('Validation Error', 'Please fix the errors and try again.');
-      return;
-    }
+ const handleSubmit = async () => {
+  setSubmitAttempted(true);
+  const isValid = validateForm();
+  
+  if (!isValid) {
+    Alert.alert('Validation Error', 'Please fix the errors and try again.');
+    return;
+  }
 
-    if (cart.length === 0) {
-      Alert.alert('Empty Cart', 'Please add items to your cart before checkout.');
-      return;
-    }
+  if (cart.length === 0) {
+    Alert.alert('Empty Cart', 'Please add items to your cart before checkout.');
+    return;
+  }
 
-    setIsSubmitting(true);
+  setIsSubmitting(true);
 
-    const deliveryFee = total >= 500 ? 0 : 50;
-    const finalTotal = total + deliveryFee;
-    const orderId = `MOB-${Date.now()}`;
-    const orderDate = new Date().toISOString();
+  const deliveryFee = total >= 500 ? 0 : 50;
+  const finalTotal = total + deliveryFee;
+  const orderId = `MOB-${Date.now()}`;
+  const orderDate = new Date().toISOString();
 
-    const orderData = {
-      orderId,
+  const orderData = {
+    orderId,
+    name: formData.name,
+    email: formData.email,
+    mobile: `+91${formData.mobile}`,
+    address: formData.address,
+    pincode: formData.pincode,
+    cart: cart.map((item) => ({
+      _id: item._id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      total: item.price * item.quantity,
+    })),
+    totalAmount: finalTotal,
+    orderDate,
+    platform: 'Mobile App',
+    customerType: isLoggedIn ? 'Registered' : 'Guest',
+  };
+
+  // Create order object for local storage
+  const orderForStorage = {
+    id: orderId,
+    orderId,
+    date: orderDate,
+    items: cart.map((item) => ({
+      _id: item._id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      total: item.price * item.quantity,
+    })),
+    total: finalTotal,
+    status: 'Processing',
+    deliveryAddress: formData.address,
+    paymentMethod: 'Email Order',
+    customerInfo: {
       name: formData.name,
       email: formData.email,
       mobile: `+91${formData.mobile}`,
-      address: formData.address,
       pincode: formData.pincode,
-      cart: cart.map((item) => ({
-        _id: item._id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        total: item.price * item.quantity,
-      })),
-      totalAmount: finalTotal,
-      orderDate,
-      platform: 'Mobile App',
-      customerType: isLoggedIn ? 'Registered' : 'Guest',
-    };
-
-    // Create order object for local storage
-    const orderForStorage: Order = {
-      id: orderId,
-      orderId,
-      date: orderDate,
-      items: cart.map((item) => ({
-        _id: item._id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        total: item.price * item.quantity,
-      })),
-      total: finalTotal,
-      status: 'Processing',
-      deliveryAddress: formData.address,
-      paymentMethod: 'Email Order',
-      customerInfo: {
-        name: formData.name,
-        email: formData.email,
-        mobile: `+91${formData.mobile}`,
-        pincode: formData.pincode,
-      },
-      platform: 'Mobile App',
-      customerType: isLoggedIn ? 'Registered' : 'Guest',
-    };
-
-    console.log('📱 Placing order:', orderData);
-
-    try {
-      // Send email
-      const emailSuccess = await sendOrderEmail(orderData);
-      
-      // Save order to local storage regardless of email success
-      await saveOrderToStorage(orderForStorage);
-      
-      // Save order to user profile if logged in
-      if (isLoggedIn) {
-        await saveOrderToProfile(orderData);
-      }
-
-      // Clear cart and navigate to home
-      await clearCart();
-      setIsSubmitting(false);
-      
-      // Navigate to home page
-      router.push('/');
-      
-      if (!emailSuccess) {
-        console.log('⚠️ Email failed but order was saved locally');
-      }
-      
-    } catch (error) {
-      console.error('❌ Error processing order:', error);
-      setIsSubmitting(false);
-      Alert.alert(
-        'Order Error',
-        'There was an error processing your order. Please try again.',
-        [{ text: 'OK' }]
-      );
-    }
+    },
+    platform: 'Mobile App',
+    customerType: isLoggedIn ? 'Registered' : 'Guest',
   };
+
+  console.log('📱 Placing order:', orderData);
+
+  try {
+    // Send email
+    const emailSuccess = await sendOrderEmail(orderData);
+    
+    // Save order to local storage regardless of email success
+    await saveOrderToStorage(orderForStorage);
+    
+    // Schedule feedback notification for 12 hours later
+    await scheduleFeedbackNotification(orderId, orderDate);
+    
+    // Save order to user profile if logged in
+    if (isLoggedIn) {
+      await saveOrderToProfile(orderData);
+    }
+
+    // Clear cart and navigate to home
+    await clearCart();
+    setIsSubmitting(false);
+    
+    // Navigate to home page
+    router.push('/');
+    
+    if (!emailSuccess) {
+      console.log('⚠️ Email failed but order was saved locally');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error processing order:', error);
+    setIsSubmitting(false);
+    Alert.alert(
+      'Order Error',
+      'There was an error processing your order. Please try again.',
+      [{ text: 'OK' }]
+    );
+  }
+};
 
   const shouldShowError = (field: keyof FormErrors): boolean =>
     errors[field] !== '' && (touched[field] || submitAttempted);
