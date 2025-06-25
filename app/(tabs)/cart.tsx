@@ -1,4 +1,4 @@
-// app/(tabs)/cart.tsx
+// app/(tabs)/cart.tsx - Fixed version
 import React from 'react';
 import {
   View,
@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Alert,
   StatusBar,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +27,11 @@ export default function CartScreen() {
     loading 
   } = useCart();
   const insets = useSafeAreaInsets();
+
+  // Calculate tab bar height to ensure proper spacing
+  const tabBarHeight = Platform.OS === 'ios' 
+    ? 60 + insets.bottom 
+    : Math.max(60 + insets.bottom, 70);
 
   const handleQuantityChange = (productId: string, newQuantity: number) => {
     if (newQuantity < 1) {
@@ -126,17 +132,17 @@ export default function CartScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <StatusBar barStyle="dark-content" backgroundColor="#f8fdf8" />
         <View style={styles.loadingContainer}>
           <Text>Loading cart...</Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8fdf8" />
       
       {/* Header */}
@@ -164,56 +170,62 @@ export default function CartScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <>
+        <View style={styles.contentContainer}>
           {/* Cart Items */}
           <ScrollView 
             style={styles.cartList} 
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: insets.bottom + 200 }}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: 20 }
+            ]}
           >
             {cart.map(renderCartItem)}
           </ScrollView>
 
-          {/* Cart Summary */}
-          <View style={styles.cartSummary}>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal ({itemCount} items)</Text>
-              <Text style={styles.summaryValue}>₹{total.toFixed(2)}</Text>
+          {/* Fixed Bottom Section */}
+          <View style={[styles.bottomSection, { marginBottom: tabBarHeight }]}>
+            {/* Cart Summary */}
+            <View style={styles.cartSummary}>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Subtotal ({itemCount} items)</Text>
+                <Text style={styles.summaryValue}>₹{total.toFixed(2)}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Delivery Fee</Text>
+                <Text style={styles.summaryValue}>
+                  {total >= 500 ? 'FREE' : '₹40.00'}
+                </Text>
+              </View>
+              <View style={styles.summaryDivider} />
+              <View style={styles.summaryRow}>
+                <Text style={styles.totalLabel}>Total</Text>
+                <Text style={styles.totalValue}>
+                  ₹{(total + (total >= 500 ? 0 : 40)).toFixed(2)}
+                </Text>
+              </View>
+              {total < 500 && (
+                <Text style={styles.freeDeliveryNote}>
+                  Add ₹{(500 - total).toFixed(2)} more for free delivery
+                </Text>
+              )}
             </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Delivery Fee</Text>
-              <Text style={styles.summaryValue}>
-                {total >= 500 ? 'FREE' : '₹40.00'}
-              </Text>
-            </View>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryRow}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>
-                ₹{(total + (total >= 500 ? 0 : 40)).toFixed(2)}
-              </Text>
-            </View>
-            {total < 500 && (
-              <Text style={styles.freeDeliveryNote}>
-                Add ₹{(500 - total).toFixed(2)} more for free delivery
-              </Text>
-            )}
-          </View>
 
-          {/* Checkout Button */}
-          <View style={[styles.checkoutContainer, { paddingBottom: insets.bottom + 20 }]}>
-            <TouchableOpacity
-              style={styles.checkoutButton}
-              onPress={handleCheckout}
-            >
-              <Text style={styles.checkoutButtonText}>
-                Proceed to Checkout • ₹{(total + (total >= 500 ? 0 : 40)).toFixed(2)}
-              </Text>
-            </TouchableOpacity>
+            {/* Checkout Button */}
+            <View style={styles.checkoutContainer}>
+              <TouchableOpacity
+                style={styles.checkoutButton}
+                onPress={handleCheckout}
+              >
+                <Text style={styles.checkoutButtonText}>
+                  Proceed to Checkout • ₹{(total + (total >= 500 ? 0 : 40)).toFixed(2)}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </>
+        </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -293,9 +305,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  contentContainer: {
+    flex: 1,
+  },
   cartList: {
     flex: 1,
     padding: 15,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   cartItem: {
     flexDirection: 'row',
@@ -380,6 +398,9 @@ const styles = StyleSheet.create({
   removeButton: {
     padding: 8,
   },
+  bottomSection: {
+    backgroundColor: 'transparent',
+  },
   cartSummary: {
     backgroundColor: '#fff',
     padding: 20,
@@ -421,7 +442,7 @@ const styles = StyleSheet.create({
     color: '#2e7d32',
   },
   freeDeliveryNote: {
-    fontSize: 20,
+    fontSize: 12,
     color: '#2e7d32',
     fontWeight: 'bold',
     marginTop: 8,

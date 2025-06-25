@@ -1,9 +1,11 @@
-// app/_layout.tsx
+
+// app/_layout.tsx - Enhanced version
 import { Stack } from 'expo-router';
 import React, { useEffect } from 'react';
 import { CartProvider } from '../context/CartContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { Platform, View } from 'react-native';
 import { checkFeedbackNotifications, cleanupOldNotifications } from '../utils/feedbackNotifications';
 
 export default function RootLayout() {
@@ -36,27 +38,42 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <CartProvider>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen 
-            name="product/[id]" 
-            options={{ 
-              title: 'Product Details',
-              headerStyle: { backgroundColor: '#2e7d32' },
-              headerTintColor: '#fff',
-            }} 
+        <View style={{ flex: 1 }}>
+          <Stack
+            screenOptions={{
+              // Add default safe area handling for all screens
+              contentStyle: { 
+                backgroundColor: '#fff',
+                flex: 1,
+              },
+            }}
+          >
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen 
+              name="product/[id]" 
+              options={{ 
+                title: 'Product Details',
+                headerStyle: { backgroundColor: '#2e7d32' },
+                headerTintColor: '#fff',
+                headerShadowVisible: false,
+              }} 
+            />
+            <Stack.Screen name="products" options={{ headerShown: false }} />
+            <Stack.Screen name="product-detail" options={{ headerShown: false }} />
+            <Stack.Screen name="cart" options={{ headerShown: false }} />
+            <Stack.Screen name="checkout" options={{ headerShown: false }} />
+            <Stack.Screen name="profile" options={{ headerShown: false }} />
+            <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+            <Stack.Screen name="sign-up" options={{ headerShown: false }} />
+            <Stack.Screen name="order-history" options={{ headerShown: false }} />
+            <Stack.Screen name="feedback" options={{ headerShown: false }} />
+          </Stack>
+          <StatusBar 
+            style="auto" 
+            backgroundColor="transparent"
+            translucent={Platform.OS === 'android'}
           />
-          <Stack.Screen name="products" options={{ headerShown: false }} />
-          <Stack.Screen name="product-detail" options={{ headerShown: false }} />
-          <Stack.Screen name="cart" options={{ headerShown: false }} />
-          <Stack.Screen name="checkout" options={{ headerShown: false }} />
-          <Stack.Screen name="profile" options={{ headerShown: false }} />
-          <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-          <Stack.Screen name="sign-up" options={{ headerShown: false }} />
-          <Stack.Screen name="order-history" options={{ headerShown: false }} />
-          <Stack.Screen name="feedback" options={{ headerShown: false }} />
-        </Stack>
-        <StatusBar style="auto" />
+        </View>
       </CartProvider>
     </SafeAreaProvider>
   );

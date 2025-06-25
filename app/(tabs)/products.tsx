@@ -1,4 +1,4 @@
-// app/(tabs)/products.tsx
+// app/(tabs)/products.tsx - Fixed version
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -11,13 +11,15 @@ import {
   Image,
   Dimensions,
   StatusBar,
+  Platform,
 } from 'react-native';
-import {  useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { productAPI, type Product } from '../../services/api';
 import { useCart } from '../../context/CartContext';
 import LoadingScreen from '../../components/ui/LoadingScreen';
-
+import { useLocalSearchParams } from 'expo-router';
 const { width } = Dimensions.get('window');
 const PRODUCT_WIDTH = (width - 60) / 2;
 
@@ -31,6 +33,11 @@ export default function ProductsScreen() {
   const { cart, addToCart, updateQuantity, removeFromCart, itemCount } = useCart();
   const insets = useSafeAreaInsets();
 
+  // Calculate tab bar height for proper bottom spacing
+  const tabBarHeight = Platform.OS === 'ios' 
+    ? 60 + insets.bottom 
+    : Math.max(60 + insets.bottom, 70);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -38,7 +45,13 @@ export default function ProductsScreen() {
   useEffect(() => {
     filterProducts();
   }, [products, selectedCategory, searchQuery]);
-
+  const params = useLocalSearchParams();
+const initialCategory = params.category as string;
+useEffect(() => {
+  if (initialCategory && categories.includes(initialCategory)) {
+    setSelectedCategory(initialCategory);
+  }
+}, [initialCategory, categories]);
   const loadData = async () => {
     try {
       setLoading(true);
@@ -127,8 +140,17 @@ export default function ProductsScreen() {
   const renderProductCard = ({ item }: { item: Product }) => {
     const quantityInCart = getProductQuantityInCart(item._id);
     
+    // Function to handle product card press (navigate to details)
+    const handleProductPress = () => {
+      router.push({ pathname: '/product/[id]', params: { id: item._id } });
+    };
+    
     return (
-      <View style={styles.productCard}>
+      <TouchableOpacity 
+        style={styles.productCard}
+        onPress={handleProductPress}
+        activeOpacity={0.8}
+      >
         <Image source={{ uri: item.image }} style={styles.productImage} />
         <View style={styles.productInfo}>
           <Text style={styles.productName} numberOfLines={2}>
@@ -141,7 +163,7 @@ export default function ProductsScreen() {
             <Text style={styles.unit}>/{item.unit}</Text>
           </View>
           
-          {/* Cart Controls */}
+          {/* Cart Controls - These will prevent navigation when pressed */}
           {!item.inStock ? (
             // Out of Stock Button
             <View style={styles.outOfStockButton}>
@@ -151,7 +173,10 @@ export default function ProductsScreen() {
             // Add to Cart Button
             <TouchableOpacity
               style={styles.addButton}
-              onPress={() => handleAddToCart(item)}
+              onPress={(e) => {
+                e.stopPropagation(); // Prevent navigation
+                handleAddToCart(item);
+              }}
             >
               <Ionicons name="add" size={16} color="#fff" />
               <Text style={styles.addButtonText}>Add</Text>
@@ -161,7 +186,10 @@ export default function ProductsScreen() {
             <View style={styles.quantityContainer}>
               <TouchableOpacity
                 style={styles.quantityButton}
-                onPress={() => handleDecreaseQuantity(item._id)}
+                onPress={(e) => {
+                  e.stopPropagation(); // Prevent navigation
+                  handleDecreaseQuantity(item._id);
+                }}
               >
                 <Ionicons name="remove" size={14} color="#2e7d32" />
               </TouchableOpacity>
@@ -172,7 +200,10 @@ export default function ProductsScreen() {
               
               <TouchableOpacity
                 style={styles.quantityButton}
-                onPress={() => handleIncreaseQuantity(item._id)}
+                onPress={(e) => {
+                  e.stopPropagation(); // Prevent navigation
+                  handleIncreaseQuantity(item._id);
+                }}
               >
                 <Ionicons name="add" size={14} color="#2e7d32" />
               </TouchableOpacity>
@@ -192,7 +223,7 @@ export default function ProductsScreen() {
             <Text style={styles.outOfStockText}>Out of Stock</Text>
           </View>
         )}
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -219,7 +250,7 @@ export default function ProductsScreen() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8fdf8" />
       
       {/* Header */}
@@ -232,14 +263,18 @@ export default function ProductsScreen() {
 
       {/* Cart Summary Bar (only show if items in cart) */}
       {itemCount > 0 && (
-        <View style={styles.cartSummaryBar}>
+        <TouchableOpacity 
+          style={styles.cartSummaryBar}
+          onPress={() => router.push('/cart')}
+        >
           <View style={styles.cartSummaryContent}>
             <Ionicons name="cart" size={18} color="#2e7d32" />
             <Text style={styles.cartSummaryText}>
               {itemCount} item{itemCount > 1 ? 's' : ''} in Basket
             </Text>
+            <Ionicons name="chevron-forward" size={16} color="#2e7d32" />
           </View>
-        </View>
+        </TouchableOpacity>
       )}
 
       {/* Search Bar */}
@@ -259,15 +294,18 @@ export default function ProductsScreen() {
         )}
       </View>
 
-      {/* Categories Filter */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.categoriesContainer}
-        contentContainerStyle={styles.categoriesContent}
-      >
-        {categories.map(renderCategoryButton)}
-      </ScrollView>
+      {/* Categories Filter - Fixed */}
+      <View style={styles.categoriesWrapper}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.categoriesContainer}
+          contentContainerStyle={styles.categoriesContent}
+          bounces={false}
+        >
+          {categories.map(renderCategoryButton)}
+        </ScrollView>
+      </View>
 
       {/* Products Grid */}
       <FlatList
@@ -278,9 +316,13 @@ export default function ProductsScreen() {
         columnWrapperStyle={styles.productRow}
         contentContainerStyle={[
           styles.productsContainer,
-          { paddingBottom: insets.bottom + 80 }
+          { 
+            paddingBottom: tabBarHeight + 20,
+            flexGrow: 1
+          }
         ]}
         showsVerticalScrollIndicator={false}
+        bounces={true}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="leaf" size={60} color="#ccc" />
@@ -291,7 +333,7 @@ export default function ProductsScreen() {
           </View>
         }
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -333,13 +375,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
   },
   cartSummaryText: {
     marginLeft: 8,
     fontSize: 14,
     fontWeight: '600',
     color: '#2e7d32',
+    flex: 1,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -365,23 +408,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-  categoriesContainer: {
+  // Fixed Categories Section
+  categoriesWrapper: {
     backgroundColor: '#fff',
-    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
+    height: 60, // Fixed height to prevent layout issues
+  },
+  categoriesContainer: {
+    flex: 1,
   },
   categoriesContent: {
     paddingHorizontal: 15,
+    paddingVertical: 15,
+    alignItems: 'center', // Center content vertically
   },
   categoryButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: '#f8f9fa',
     marginRight: 10,
     borderWidth: 1,
     borderColor: '#e9ecef',
+    minHeight: 36, // Ensure consistent height
+    justifyContent: 'center', // Center text vertically
+    alignItems: 'center', // Center text horizontally
   },
   categoryButtonActive: {
     backgroundColor: '#2e7d32',
@@ -391,6 +443,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 18, // Better vertical centering
   },
   categoryButtonTextActive: {
     color: '#fff',

@@ -1,4 +1,4 @@
-// app/(tabs)/_layout.tsx - Updated with safe area handling
+// app/(tabs)/_layout.tsx - Fixed version
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,15 +19,23 @@ export default function TabLayout() {
           backgroundColor: '#fff',
           borderTopWidth: 1,
           borderTopColor: '#e9ecef',
-          paddingBottom: Platform.OS === 'ios' ? insets.bottom : Math.max(insets.bottom, 10),
+          // Fixed padding and height calculations
+          paddingBottom: Platform.OS === 'ios' ? 0 : Math.max(insets.bottom, 10),
           paddingTop: 5,
-          height: Platform.OS === 'ios' ? 60 + insets.bottom : Math.max(70, 50 + insets.bottom),
+          height: Platform.OS === 'ios' 
+            ? 60 + insets.bottom 
+            : Math.max(60 + insets.bottom, 70),
           paddingHorizontal: 10,
           elevation: 8,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.1,
           shadowRadius: 4,
+          // Ensure tab bar stays above system navigation
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
         },
         tabBarLabelStyle: {
           fontSize: 12,
@@ -38,7 +46,7 @@ export default function TabLayout() {
           marginTop: 2,
         },
         headerShown: false,
-        tabBarHideOnKeyboard: true, // Hide tab bar when keyboard is open
+        tabBarHideOnKeyboard: true,
       }}
     >
       <Tabs.Screen

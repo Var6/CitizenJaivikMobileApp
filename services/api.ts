@@ -95,6 +95,35 @@ export const productAPI = {
     }
   },
 
+  // Get a single product by ID - CORRECTED METHOD
+  getProductById: async (id: string): Promise<Product> => {
+    try {
+      console.log('Fetching product by ID:', id);
+      const response = await api.get<Product>(`/products/${id}`);
+      console.log('Product fetched successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching product by ID:', error);
+      
+      // Fallback: try to find the product in all products
+      try {
+        console.log('Trying fallback method...');
+        const allProducts = await productAPI.getAllProducts();
+        const product = allProducts.find(p => p._id === id);
+        
+        if (product) {
+          console.log('Product found via fallback method:', product);
+          return product;
+        } else {
+          throw new Error(`Product with ID ${id} not found`);
+        }
+      } catch (fallbackError) {
+        console.error('Fallback method also failed:', fallbackError);
+        throw new Error(`Product with ID ${id} not found`);
+      }
+    }
+  },
+
   // Get products by category
   getProductsByCategory: async (category: string): Promise<Product[]> => {
     try {

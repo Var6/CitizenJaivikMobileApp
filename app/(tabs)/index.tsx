@@ -84,10 +84,12 @@ export default function HomeScreen() {
     }
   };
 
-  const handleCategoryPress = (category: string) => {
-    router.push('/products');
-  };
-
+ const handleCategoryPress = (category: string) => {
+  router.push({
+    pathname: '/products',
+    params: { category: category }
+  });
+};
   const handleCartPress = () => {
     router.push('/cart');
   };
@@ -95,8 +97,17 @@ export default function HomeScreen() {
   const renderProductCard = ({ item }: { item: Product }) => {
     const quantityInCart = getProductQuantityInCart(item._id);
     
+    // Function to handle product card press (navigate to details)
+    const handleProductPress = () => {
+      router.push({ pathname: '/product/[id]', params: { id: item._id } });
+    };
+    
     return (
-      <View style={styles.productCard}>
+      <TouchableOpacity 
+        style={styles.productCard}
+        onPress={handleProductPress}
+        activeOpacity={0.8}
+      >
         <Image source={{ uri: item.image }} style={styles.productImage} />
         <View style={styles.productInfo}>
           <Text style={styles.productName} numberOfLines={2}>
@@ -109,7 +120,7 @@ export default function HomeScreen() {
             <Text style={styles.unit}>/{item.unit}</Text>
           </View>
           
-          {/* Cart Controls */}
+          {/* Cart Controls - These will prevent navigation when pressed */}
           {!item.inStock ? (
             // Out of Stock Button
             <View style={styles.outOfStockButton}>
@@ -119,7 +130,10 @@ export default function HomeScreen() {
             // Add to Cart Button
             <TouchableOpacity
               style={styles.addButton}
-              onPress={() => handleAddToCart(item)}
+              onPress={(e) => {
+                e.stopPropagation(); // Prevent navigation
+                handleAddToCart(item);
+              }}
             >
               <Ionicons name="add" size={16} color="#fff" />
               <Text style={styles.addButtonText}>Add to Cart</Text>
@@ -129,7 +143,10 @@ export default function HomeScreen() {
             <View style={styles.quantityContainer}>
               <TouchableOpacity
                 style={styles.quantityButton}
-                onPress={() => handleDecreaseQuantity(item._id)}
+                onPress={(e) => {
+                  e.stopPropagation(); // Prevent navigation
+                  handleDecreaseQuantity(item._id);
+                }}
               >
                 <Ionicons name="remove" size={16} color="#2e7d32" />
               </TouchableOpacity>
@@ -141,7 +158,10 @@ export default function HomeScreen() {
               
               <TouchableOpacity
                 style={styles.quantityButton}
-                onPress={() => handleIncreaseQuantity(item._id)}
+                onPress={(e) => {
+                  e.stopPropagation(); // Prevent navigation
+                  handleIncreaseQuantity(item._id);
+                }}
               >
                 <Ionicons name="add" size={16} color="#2e7d32" />
               </TouchableOpacity>
@@ -161,7 +181,7 @@ export default function HomeScreen() {
             <Text style={styles.outOfStockText}>Out of Stock</Text>
           </View>
         )}
-      </View>
+      </TouchableOpacity>
     );
   };
 
