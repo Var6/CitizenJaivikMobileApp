@@ -1,5 +1,5 @@
-// app/sign-in.tsx
-import React, { useState, useRef } from 'react';
+// app/sign-in.tsx - Simplified version
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -15,225 +15,198 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useNavigation } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import LogoToo from '@/components/ui/LogoToo';
-
-interface UserProfile {
-  phone: string;
-  name: string;
-  email: string;
-  addresses: {
-    id: string;
-    type: 'Home' | 'Work' | 'Other';
-    name: string;
-    phone: string;
-    address: string;
-    pincode: string;
-    isDefault: boolean;
-  }[];
-  orders: any[];
-  createdAt: string;
-  lastLoginAt: string;
-  isVerified: boolean;
-}
+import { useAuth } from '@/context/AuthContext';
 
 export default function SignInScreen() {
-  const [step, setStep] = useState<'phone' | 'profile'>('phone');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [step, setStep] = useState<'email' | 'signup'>('email');
   const [isLoading, setIsLoading] = useState(false);
   const navigation = useNavigation();
-    
-    React.useLayoutEffect(() => {
-      navigation.setOptions({ headerShown: false });
-    }, []);
   
-  // Profile setup states
-  const [profileData, setProfileData] = useState({
-    name: '',
-    email: '',
-    address: '',
-    pincode: '',
+  // Get auth functions from context
+  const { login, signup, navigateToProfile } = useAuth();
+    
+  React.useLayoutEffect(() => {
+    navigation.setOptions({ headerShown: false });
+  }, []);
+  
+  // Email/Password login states
+  const [loginData, setLoginData] = useState({
+    emailOrMobile: '',
+    password: '',
   });
 
-  // Format phone number
-  const formatPhoneNumber = (text: string) => {
-    const cleaned = text.replace(/\D/g, '');
-    if (cleaned.length <= 10) {
-      setPhoneNumber(cleaned);
-    }
-  };
+  // Signup states
+  const [signupData, setSignupData] = useState({
+    fullName: '',
+    email: '',
+    mobile: '',
+    address: '',
+    pincode: '',
+    password: '',
+  });
 
-  // Handle phone number submission
-  const handlePhoneSubmit = async () => {
-    if (phoneNumber.length !== 10) {
-      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+  // Handle email/password login
+  const handleEmailLogin = async () => {
+    if (!loginData.emailOrMobile || !loginData.password) {
+      Alert.alert('Error', 'Please fill all fields');
       return;
     }
 
     setIsLoading(true);
-
+    
     try {
-      // Check if user already exists
-      const existingUser = await AsyncStorage.getItem('user_profile');
-      if (existingUser) {
-        const userData = JSON.parse(existingUser);
-        if (userData.phone === `+91${phoneNumber}`) {
-          // Existing user - direct login
-          userData.lastLoginAt = new Date().toISOString();
-          await AsyncStorage.setItem('user_profile', JSON.stringify(userData));
-          await AsyncStorage.setItem('is_logged_in', 'true');
-          
-          setIsLoading(false);
-         Alert.alert(
-  `🌟 Welcome Back,\n \n ${userData.name}!`, 
-  `🌿 Your organic marketplace awaits!\n\n✨ Discover new arrivals\n🚚 Check your orders\n💚 Continue your wellness journey`,
-  [
-    { 
-      text: '🚀 Let\'s Go!', 
-      onPress: () => router.replace('/(tabs)/profile') 
-    }
-  ]
-);
-          return;
-        }
-      }
+      const result = await login(loginData.emailOrMobile, loginData.password);
       
-      // New user - setup profile
-      setStep('profile');
-      setIsLoading(false);
+      if (result.success) {
+        Alert.alert(
+          '🌟 Welcome Back!',
+          '🌿 Successfully signed in!\n\n✨ Your organic marketplace awaits',
+          [
+            { 
+              text: '🚀 Let\'s Go!', 
+              onPress: () => navigateToProfile()
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Login Failed', result.message || 'Login failed');
+      }
     } catch (error) {
-      console.error('Error checking user:', error);
-      setStep('profile');
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
       setIsLoading(false);
     }
   };
 
-  // Complete profile setup
-  const handleCompleteProfile = async () => {
-    if (!profileData.name || !profileData.email || !profileData.address || !profileData.pincode) {
+  // Handle signup
+  const handleSignup = async () => {
+    // Validate all fields
+    if (!signupData.fullName || !signupData.email || !signupData.mobile || 
+        !signupData.address || !signupData.pincode || !signupData.password) {
       Alert.alert('Error', 'Please fill all fields');
       return;
     }
 
     // Validate email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(profileData.email)) {
+    if (!emailRegex.test(signupData.email)) {
       Alert.alert('Error', 'Please enter a valid email address');
       return;
     }
 
+    // Validate mobile (Indian mobile number)
+    if (!/^[6-9]\d{9}$/.test(signupData.mobile)) {
+      Alert.alert('Error', 'Please enter a valid 10-digit mobile number');
+      return;
+    }
+
     // Validate pincode
-    if (!/^800\d{3}$/.test(profileData.pincode)) {
-      Alert.alert('Error', 'We only deliver to pincodes starting with 800***');
+    if (!/^\d{6}$/.test(signupData.pincode)) {
+      Alert.alert('Error', 'Please enter a valid 6-digit pincode');
+      return;
+    }
+
+    // Validate password
+    if (signupData.password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
       return;
     }
 
     setIsLoading(true);
-
-    // Create user profile
-    const userProfile: UserProfile = {
-      phone: `+91${phoneNumber}`,
-      name: profileData.name,
-      email: profileData.email,
-      addresses: [{
-        id: `addr_${Date.now()}`,
-        type: 'Home',
-        name: profileData.name,
-        phone: `+91${phoneNumber}`,
-        address: profileData.address,
-        pincode: profileData.pincode,
-        isDefault: true
-      }],
-      orders: [],
-      createdAt: new Date().toISOString(),
-      lastLoginAt: new Date().toISOString(),
-      isVerified: true
-    };
-
+    
     try {
-      await AsyncStorage.setItem('user_profile', JSON.stringify(userProfile));
-      await AsyncStorage.setItem('is_logged_in', 'true');
+      const result = await signup(signupData);
       
-      setIsLoading(false);
-      Alert.alert(
-  '✅ Account Created Successfully!', 
-  `🌿 Welcome to the family, ${profileData.name}!\n\n🥬 Discover premium organic products\n🚚 Get fresh deliveries to your doorstep\n💚 Join thousands of health-conscious customers\n\nLet's get you started on your wellness journey!`,
-  [
-    { 
-      text: '🛒 Explore Products', 
-      onPress: () => router.replace('/(tabs)/profile'),
-      style: 'default'
-    }
-  ],
-  { cancelable: false }
-);
+      if (result.success) {
+        Alert.alert(
+          '✅ Account Created!',
+          `🌿 Welcome to the family, ${signupData.fullName}!\n\n🥬 Discover premium organic products`,
+          [
+            { 
+              text: '🛒 Explore Products', 
+              onPress: () => navigateToProfile()
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Signup Failed', result.message || 'Signup failed');
+      }
     } catch (error) {
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
       setIsLoading(false);
-      Alert.alert('Error', 'Failed to create profile. Please try again.');
     }
   };
 
-  const renderPhoneStep = () => (
+  const renderEmailStep = () => (
     <View style={styles.formSection}>
-      <Text style={styles.formTitle}>Enter Phone Number</Text>
+      <Text style={styles.formTitle}>Sign In</Text>
+      <Text style={styles.formSubtitle}>Enter your credentials</Text>
       
-      <View style={styles.phoneInputContainer}>
-        <View style={styles.countryCode}>
-          <Text style={styles.countryCodeText}>🇮🇳 +91</Text>
-        </View>
+      {/* Email/Mobile Input */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Email or Mobile *</Text>
         <TextInput
-          style={styles.phoneInput}
-          value={phoneNumber}
-          onChangeText={formatPhoneNumber}
-          placeholder="Enter 10-digit phone number"
+          style={styles.textInput}
+          value={loginData.emailOrMobile}
+          onChangeText={(text) => setLoginData({...loginData, emailOrMobile: text})}
+          placeholder="Enter email or mobile number"
           placeholderTextColor="#999"
-          keyboardType="phone-pad"
-          maxLength={10}
-          autoFocus
+          keyboardType="email-address"
+          autoCapitalize="none"
         />
       </View>
 
-      <Text style={styles.helperText}>
-        Enter your mobile number to continue
-      </Text>
+      {/* Password Input */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Password *</Text>
+        <TextInput
+          style={styles.textInput}
+          value={loginData.password}
+          onChangeText={(text) => setLoginData({...loginData, password: text})}
+          placeholder="Enter password"
+          placeholderTextColor="#999"
+          secureTextEntry
+        />
+      </View>
 
       <TouchableOpacity 
-        style={[styles.primaryButton, (!phoneNumber || phoneNumber.length !== 10 || isLoading) && styles.disabledButton]}
-        onPress={handlePhoneSubmit}
-        disabled={!phoneNumber || phoneNumber.length !== 10 || isLoading}
+        style={[styles.primaryButton, isLoading && styles.disabledButton]}
+        onPress={handleEmailLogin}
+        disabled={isLoading}
       >
         {isLoading ? (
-          <Text style={styles.primaryButtonText}>Checking...</Text>
+          <Text style={styles.primaryButtonText}>Signing in...</Text>
         ) : (
           <>
-            <Ionicons name="arrow-forward-outline" size={20} color="#fff" style={{marginRight: 8}} />
-            <Text style={styles.primaryButtonText}>Continue</Text>
+            <Ionicons name="log-in-outline" size={20} color="#fff" style={{marginRight: 8}} />
+            <Text style={styles.primaryButtonText}>Sign In</Text>
           </>
         )}
       </TouchableOpacity>
+
+      <View style={styles.signupPrompt}>
+        <Text style={styles.signupPromptText}>Don't have an account? </Text>
+        <TouchableOpacity onPress={() => setStep('signup')} disabled={isLoading}>
+          <Text style={styles.signupLink}>Sign up here</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
-  const renderProfileStep = () => (
+  const renderSignupStep = () => (
     <View style={styles.formSection}>
-      <Text style={styles.formTitle}>Complete Your Profile</Text>
-      <Text style={styles.formSubtitle}>Set up your delivery details</Text>
-      
-      {/* Phone Display */}
-      <View style={styles.phoneDisplay}>
-        <Text style={styles.phoneDisplayText}>+91 {phoneNumber}</Text>
-        <TouchableOpacity onPress={() => setStep('phone')}>
-          <Ionicons name="create-outline" size={20} color="#2e7d32" />
-        </TouchableOpacity>
-      </View>
+      <Text style={styles.formTitle}>Create Account</Text>
+      <Text style={styles.formSubtitle}>Join the organic family</Text>
       
       {/* Full Name */}
       <View style={styles.inputGroup}>
         <Text style={styles.inputLabel}>Full Name *</Text>
         <TextInput
           style={styles.textInput}
-          value={profileData.name}
-          onChangeText={(text) => setProfileData({...profileData, name: text})}
+          value={signupData.fullName}
+          onChangeText={(text) => setSignupData({...signupData, fullName: text})}
           placeholder="Enter your full name"
           placeholderTextColor="#999"
         />
@@ -244,8 +217,8 @@ export default function SignInScreen() {
         <Text style={styles.inputLabel}>Email Address *</Text>
         <TextInput
           style={styles.textInput}
-          value={profileData.email}
-          onChangeText={(text) => setProfileData({...profileData, email: text})}
+          value={signupData.email}
+          onChangeText={(text) => setSignupData({...signupData, email: text})}
           placeholder="Enter your email"
           placeholderTextColor="#999"
           keyboardType="email-address"
@@ -253,13 +226,27 @@ export default function SignInScreen() {
         />
       </View>
 
+      {/* Mobile */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Mobile Number *</Text>
+        <TextInput
+          style={styles.textInput}
+          value={signupData.mobile}
+          onChangeText={(text) => setSignupData({...signupData, mobile: text})}
+          placeholder="Enter 10-digit mobile number"
+          placeholderTextColor="#999"
+          keyboardType="phone-pad"
+          maxLength={10}
+        />
+      </View>
+
       {/* Address */}
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Delivery Address *</Text>
+        <Text style={styles.inputLabel}>Address *</Text>
         <TextInput
           style={styles.textAreaInput}
-          value={profileData.address}
-          onChangeText={(text) => setProfileData({...profileData, address: text})}
+          value={signupData.address}
+          onChangeText={(text) => setSignupData({...signupData, address: text})}
           placeholder="House/Flat No., Building, Street, Area"
           placeholderTextColor="#999"
           multiline
@@ -273,38 +260,56 @@ export default function SignInScreen() {
         <Text style={styles.inputLabel}>Pincode *</Text>
         <TextInput
           style={styles.textInput}
-          value={profileData.pincode}
-          onChangeText={(text) => setProfileData({...profileData, pincode: text})}
+          value={signupData.pincode}
+          onChangeText={(text) => setSignupData({...signupData, pincode: text})}
           placeholder="Enter 6-digit pincode"
           placeholderTextColor="#999"
           keyboardType="number-pad"
           maxLength={6}
         />
-        <Text style={styles.deliveryNote}>
-          We deliver to pincodes starting with 800*** only
-        </Text>
+      </View>
+
+      {/* Password */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Password *</Text>
+        <TextInput
+          style={styles.textInput}
+          value={signupData.password}
+          onChangeText={(text) => setSignupData({...signupData, password: text})}
+          placeholder="Enter password (min 6 characters)"
+          placeholderTextColor="#999"
+          secureTextEntry
+        />
       </View>
 
       <TouchableOpacity 
         style={[styles.primaryButton, isLoading && styles.disabledButton]}
-        onPress={handleCompleteProfile}
+        onPress={handleSignup}
         disabled={isLoading}
       >
         {isLoading ? (
-          <Text style={styles.primaryButtonText}>Creating Profile...</Text>
+          <Text style={styles.primaryButtonText}>Creating Account...</Text>
         ) : (
           <>
             <Ionicons name="person-add-outline" size={20} color="#fff" style={{marginRight: 8}} />
-            <Text style={styles.primaryButtonText}>Complete Setup</Text>
+            <Text style={styles.primaryButtonText}>Create Account</Text>
           </>
         )}
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={styles.backToChoiceButton}
+        onPress={() => setStep('email')}
+        disabled={isLoading}
+      >
+        <Text style={styles.backToChoiceText}>← Back to sign in</Text>
       </TouchableOpacity>
     </View>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
+      <StatusBar barStyle="dark-content" translucent={false} />
       
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -320,20 +325,9 @@ export default function SignInScreen() {
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {step === 'phone' ? 'Sign In' : 'Setup Profile'}
+            {step === 'email' ? 'Sign In' : 'Sign Up'}
           </Text>
           <View style={styles.placeholder} />
-        </View>
-
-        {/* Progress Indicator */}
-        <View style={styles.progressContainer}>
-          <View style={[styles.progressStep, step === 'phone' && styles.activeStep, step === 'profile' && styles.completedStep]}>
-            <Text style={[styles.progressText, step === 'phone' && styles.activeProgressText, step === 'profile' && styles.completedProgressText]}>1</Text>
-          </View>
-          <View style={[styles.progressLine, step === 'profile' && styles.completedLine]} />
-          <View style={[styles.progressStep, step === 'profile' && styles.activeStep]}>
-            <Text style={[styles.progressText, step === 'profile' && styles.activeProgressText]}>2</Text>
-          </View>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -342,22 +336,21 @@ export default function SignInScreen() {
             <View style={styles.welcomeIcon}>
               <LogoToo size='large'/>
             </View>
-            <Text style={styles.welcomeTitle}>Welcome to Citizen Jaivik</Text>
+            <Text style={styles.welcomeTitle}>Citizen Jaivik</Text>
             <Text style={styles.welcomeSubtitle}>
-              {step === 'phone' && 'Enter your phone number to get started'}
-              {step === 'profile' && 'Complete your profile for seamless ordering'}
+              Premium organic products delivered fresh to your doorstep
             </Text>
           </View>
 
           {/* Form Steps */}
-          {step === 'phone' && renderPhoneStep()}
-          {step === 'profile' && renderProfileStep()}
+          {step === 'email' && renderEmailStep()}
+          {step === 'signup' && renderSignupStep()}
 
           {/* Info Note */}
           <View style={styles.infoNote}>
             <Ionicons name="information-circle-outline" size={20} color="#2e7d32" />
             <Text style={styles.infoText}>
-              Your data is stored securely on your device. For a new device, you'll need to set up your profile again.
+              Your data is secured with enterprise-grade encryption. We respect your privacy.
             </Text>
           </View>
         </ScrollView>
@@ -396,48 +389,6 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 34,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 55,
-    backgroundColor: '#fff',
-  },
-  progressStep: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#e9ecef',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  activeStep: {
-    backgroundColor: '#2e7d32',
-  },
-  completedStep: {
-    backgroundColor: '#2e7d32',
-  },
-  progressText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#666',
-  },
-  activeProgressText: {
-    color: '#fff',
-  },
-  completedProgressText: {
-    color: '#fff',
-  },
-  progressLine: {
-    flex: 1,
-    height: 2,
-    backgroundColor: '#e9ecef',
-    marginHorizontal: 10,
-  },
-  completedLine: {
-    backgroundColor: '#2e7d32',
   },
   content: {
     flex: 1,
@@ -495,54 +446,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 20,
   },
-  phoneInputContainer: {
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginBottom: 15,
-  },
-  countryCode: {
-    backgroundColor: '#f8f9fa',
-    paddingHorizontal: 15,
-    paddingVertical: 15,
-    justifyContent: 'center',
-    borderRightWidth: 1,
-    borderRightColor: '#e9ecef',
-  },
-  countryCodeText: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '600',
-  },
-  phoneInput: {
-    flex: 1,
-    paddingHorizontal: 15,
-    paddingVertical: 15,
-    fontSize: 16,
-    color: '#333',
-  },
-  phoneDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#f8f9fa',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 20,
-  },
-  phoneDisplayText: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '600',
-  },
-  helperText: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
   inputGroup: {
     marginBottom: 20,
   },
@@ -571,12 +474,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     height: 80,
   },
-  deliveryNote: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-    fontStyle: 'italic',
-  },
   primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -584,6 +481,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2e7d32',
     paddingVertical: 15,
     borderRadius: 8,
+    marginBottom: 15,
   },
   disabledButton: {
     backgroundColor: '#ccc',
@@ -592,6 +490,29 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  signupPrompt: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  signupPromptText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  signupLink: {
+    fontSize: 14,
+    color: '#2e7d32',
+    fontWeight: '600',
+  },
+  backToChoiceButton: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  backToChoiceText: {
+    color: '#666',
+    fontSize: 14,
   },
   infoNote: {
     flexDirection: 'row',

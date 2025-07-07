@@ -1,5 +1,5 @@
-// app/(tabs)/profile.tsx
-import React, { useState, useEffect } from 'react';
+// app/(tabs)/profile.tsx - Updated to use AuthContext
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,107 +10,69 @@ import {
   StatusBar,
   Linking,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
-
-interface UserProfile {
-  phone: string;
-  name: string;
-  email: string;
-  addresses: {
-    id: string;
-    type: 'Home' | 'Work' | 'Other';
-    name: string;
-    phone: string;
-    address: string;
-    pincode: string;
-    isDefault: boolean;
-  }[];
-  orders: any[];
-  createdAt: string;
-  lastLoginAt: string;
-  isVerified: boolean;
-}
+import { useAuth } from '@/context/AuthContext';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, isAuthenticated, logout, isLoading } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
   // Load user data when screen focuses
   useFocusEffect(
     React.useCallback(() => {
-      loadUserData();
-    }, [])
+      console.log('🔍 Profile Screen - Auth Status:', {
+        isAuthenticated,
+        isLoading,
+        userEmail: user?.email,
+        userName: user?.fullName,
+      });
+    }, [isAuthenticated, isLoading, user])
   );
-
-  const loadUserData = async () => {
-    try {
-      const loginStatus = await AsyncStorage.getItem('is_logged_in');
-      const userData = await AsyncStorage.getItem('user_profile');
-      
-      if (loginStatus === 'true' && userData) {
-        setIsLoggedIn(true);
-        setUserProfile(JSON.parse(userData));
-      } else {
-        setIsLoggedIn(false);
-        setUserProfile(null);
-      }
-    } catch (error) {
-      console.error('Error loading user data:', error);
-      setIsLoggedIn(false);
-      setUserProfile(null);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadUserData();
-    setRefreshing(false);
+    // You can add any refresh logic here if needed
+    setTimeout(() => setRefreshing(false), 1000);
   };
 
   const handleSignOut = () => {
- Alert.alert(
-   '👋 Sign Out',
-   'Are you sure you want to sign out?\n\n📱 Your data will remain safely stored on this device for when you return.',
-   [
-     { text: 'Cancel', style: 'cancel' },
-     {
-       text: '🚙 Sign Out',
-       style: 'destructive',
-       onPress: async () => {
-         try {
-           await AsyncStorage.setItem('is_logged_in', 'false');
-           setIsLoggedIn(false);
-           setUserProfile(null);
-           Alert.alert(
-             '✅ Signed Out Successfully', 
-             '🌱 Thank you for choosing Citizen Jaivik!\n\nSee you soon for more organic goodness!',
-             [{ text: '👍 OK' }]
-           );
-         } catch (error) {
-           console.error('Error signing out:', error);
-           Alert.alert('❌ Error', 'Something went wrong while signing out. Please try again.');
-         }
-       }
-     }
-   ]
- );
-};
+    Alert.alert(
+      '👋 Sign Out',
+      'Are you sure you want to sign out?\n\n📱 You will need to sign in again to access your account.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: '🚙 Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logout();
+              Alert.alert(
+                '✅ Signed Out Successfully', 
+                '🌱 Thank you for choosing Citizen Jaivik!\n\nSee you soon for more organic goodness!',
+                [{ text: '👍 OK' }]
+              );
+            } catch (error) {
+              console.error('Error signing out:', error);
+              Alert.alert('❌ Error', 'Something went wrong while signing out. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const handleFeaturePress = (feature: string) => {
     // Check if user is logged in for protected features
     const protectedFeatures = ['Personal Information', 'Order History', 'Addresses', 'Notifications', 'Payment Methods', 'Feedback'];
     
-    if (protectedFeatures.includes(feature) && !isLoggedIn) {
+    if (protectedFeatures.includes(feature) && !isAuthenticated) {
       Alert.alert(
         'Sign In Required',
         'Please sign in to access this feature.',
@@ -186,10 +148,10 @@ export default function ProfileScreen() {
       description: 'Manage delivery addresses',
       protected: true,
     },
-     {
+    {
       id: '4',
       title: 'Feedback',
-      icon: 'feedback-outline',
+      icon: 'accessibility-outline',
       description: 'Deliver your feedback directly to us',
       protected: true,
     },
@@ -228,63 +190,64 @@ export default function ProfileScreen() {
       key={item.id}
       style={[
         styles.menuItem,
-        item.protected && !isLoggedIn && styles.disabledMenuItem
+        item.protected && !isAuthenticated && styles.disabledMenuItem
       ]}
       onPress={() => handleFeaturePress(item.title)}
     >
       <View style={styles.menuItemLeft}>
         <View style={[
           styles.iconContainer,
-          item.protected && !isLoggedIn && styles.disabledIconContainer
+          item.protected && !isAuthenticated && styles.disabledIconContainer
         ]}>
           <Ionicons 
             name={item.icon} 
             size={24} 
-            color={item.protected && !isLoggedIn ? "#ccc" : "#2e7d32"} 
+            color={item.protected && !isAuthenticated ? "#ccc" : "#2e7d32"} 
           />
         </View>
         <View style={styles.menuItemText}>
           <Text style={[
             styles.menuItemTitle,
-            item.protected && !isLoggedIn && styles.disabledText
+            item.protected && !isAuthenticated && styles.disabledText
           ]}>
             {item.title}
           </Text>
           <Text style={[
             styles.menuItemDescription,
-            item.protected && !isLoggedIn && styles.disabledText
+            item.protected && !isAuthenticated && styles.disabledText
           ]}>
             {item.description}
-            {item.protected && !isLoggedIn && ' (Sign in required)'}
+            {item.protected && !isAuthenticated && ' (Sign in required)'}
           </Text>
         </View>
       </View>
       <Ionicons 
         name="chevron-forward" 
         size={20} 
-        color={item.protected && !isLoggedIn ? "#eee" : "#ccc"} 
+        color={item.protected && !isAuthenticated ? "#eee" : "#ccc"} 
       />
     </TouchableOpacity>
   );
 
   const renderUserSection = () => {
-    if (isLoggedIn && userProfile) {
+    if (isAuthenticated && user) {
       // Logged in user
-      const defaultAddress = userProfile.addresses.find(addr => addr.isDefault);
-      
       return (
         <View style={styles.userSection}>
           <View style={styles.avatarContainer}>
             <View style={styles.verifiedBadge}>
               <Ionicons name="checkmark-circle" size={16} color="#2e7d32" />
             </View>
-            <Ionicons name="person" size={40} color="#2e7d32" />
+            <Image 
+              source={{ uri: (user as any).image || <Ionicons name="person" size={16} color="#2e7d32" /> }}
+              style={{ width: 60, height: 60, borderRadius: 30 }}/>
           </View>
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>{userProfile.name}</Text>
-            <Text style={styles.userPhone}>{userProfile.phone}</Text>
+            <Text style={styles.userName}>{user.fullName}</Text>
+            <Text style={styles.userEmail}>{user.email}</Text>
+            <Text style={styles.userPhone}>{user.mobile || 'No mobile number'}</Text>
             <Text style={styles.userAddress}>
-              {defaultAddress ? `${defaultAddress.address.substring(0, 30)}...` : 'No address'}
+              {user.address ? `${user.address.substring(0, 30)}...` : 'No address'}
             </Text>
           </View>
           <TouchableOpacity
@@ -318,38 +281,37 @@ export default function ProfileScreen() {
   };
 
   const renderStatsCards = () => {
-    if (!isLoggedIn || !userProfile) return null;
+    if (!isAuthenticated || !user) return null;
+
+    // Calculate stats from user data
+    const accountAge = user.createdAt 
+      ? Math.floor((new Date().getTime() - new Date(user.createdAt).getTime()) / (1000 * 3600 * 24))
+      : 0;
 
     return (
-     <View style={styles.statsSection}>
- <TouchableOpacity 
-   style={styles.statsCard}
-   onPress={() => router.push('/order-history')}
-   activeOpacity={0.7}
- >
-   <Ionicons name="receipt-outline" size={24} color="#2e7d32" />
-   <Text style={styles.statsNumber}>{userProfile.orders.length}</Text>
-   <Text style={styles.statsLabel}>Orders</Text>
- </TouchableOpacity>
- 
- <TouchableOpacity 
-   style={styles.statsCard}
-   onPress={() => router.push('/addresses')}
-   activeOpacity={0.7}
- >
-   <Ionicons name="location-outline" size={24} color="#2e7d32" />
-   <Text style={styles.statsNumber}>{userProfile.addresses.length}</Text>
-   <Text style={styles.statsLabel}>Addresses</Text>
- </TouchableOpacity>
- 
- <View style={styles.statsCard}>
-   <Ionicons name="time-outline" size={24} color="#2e7d32" />
-   <Text style={styles.statsNumber}>
-     {Math.floor((new Date().getTime() - new Date(userProfile.createdAt).getTime()) / (1000 * 3600 * 24))}
-   </Text>
-   <Text style={styles.statsLabel}>Days</Text>
- </View>
-</View>
+      <View style={styles.statsSection}>
+        <TouchableOpacity 
+          style={styles.statsCard}
+          onPress={() => router.push('/order-history')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="receipt-outline" size={24} color="#2e7d32" />
+          <Text style={styles.statsNumber}>0</Text>
+          <Text style={styles.statsLabel}>Orders</Text>
+        </TouchableOpacity>
+        
+        <View style={styles.statsCard}>
+          <Ionicons name="location-outline" size={24} color="#2e7d32" />
+          <Text style={styles.statsNumber}>{user.address ? 1 : 0}</Text>
+          <Text style={styles.statsLabel}>Addresses</Text>
+        </View>
+        
+        <View style={styles.statsCard}>
+          <Ionicons name="time-outline" size={24} color="#2e7d32" />
+          <Text style={styles.statsNumber}>{accountAge}</Text>
+          <Text style={styles.statsLabel}>Days</Text>
+        </View>
+      </View>
     );
   };
 
@@ -366,7 +328,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f8fdf8" />
+      <StatusBar barStyle="dark-content" translucent={false} />
       
       <ScrollView 
         showsVerticalScrollIndicator={false}
@@ -378,7 +340,7 @@ export default function ProfileScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Profile</Text>
-          {isLoggedIn && (
+          {isAuthenticated && (
             <View style={styles.onlineIndicator}>
               <View style={styles.onlineDot} />
               <Text style={styles.onlineText}>Online</Text>
@@ -540,6 +502,7 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 14,
     color: '#666',
+    marginBottom: 2,
   },
   signInButton: {
     backgroundColor: '#2e7d32',
